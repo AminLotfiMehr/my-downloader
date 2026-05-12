@@ -1,306 +1,280 @@
-- name: Scrape website
-  id: scrape
-  run: |
-    TARGET_URL="${{ github.event.inputs.target_url }}"
-    EXTENSIONS="${{ github.event.inputs.file_extensions }}"
-    MIN_SIZE_MB="${{ github.event.inputs.min_file_size_mb }}"
-    MAX_SIZE_MB="${{ github.event.inputs.max_file_size_mb }}"
-    MAX_PAGES="${{ github.event.inputs.max_pages }}"
-    SHOW_ALL="${{ github.event.inputs.show_all_links }}"
-    DEPTH="${{ github.event.inputs.recursive_depth }}"
-    
-    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    
-    MAIN_DIR="Scraped"
-    mkdir -p "$MAIN_DIR"
-    
-    CLEAN_NAME=$(echo "$TARGET_URL" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's|[^a-zA-Z0-9._-]|_|g' | cut -c1-50)
-    SESSION_NAME="scrape_${TIMESTAMP}_${CLEAN_NAME}"
-    SESSION_PATH="$MAIN_DIR/$SESSION_NAME"
-    mkdir -p "$SESSION_PATH"
-    
-    echo "========================================="
-    echo "Web Scraper Starting"
-    echo "URL: $TARGET_URL"
-    if [ -z "$EXTENSIONS" ]; then
-      echo "Extensions: ALL FILES (no filter)"
-    else
-      echo "Extensions: $EXTENSIONS"
-    fi
-    echo "Min Size: $MIN_SIZE_MB MB"
-    echo "Max Size: $MAX_SIZE_MB MB"
-    echo "Max Pages: $MAX_PAGES"
-    echo "Show All: $SHOW_ALL"
-    echo "Session: $SESSION_PATH"
-    echo "========================================="
-    
-    # Save config
-    echo "{" > "$SESSION_PATH/scrape_config.json"
-    echo "  \"target_url\": \"$TARGET_URL\"," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"file_extensions\": \"$EXTENSIONS\"," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"min_file_size_mb\": $MIN_SIZE_MB," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"max_file_size_mb\": $MAX_SIZE_MB," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"max_pages\": $MAX_PAGES," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"show_all_links\": $SHOW_ALL," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"recursive_depth\": $DEPTH," >> "$SESSION_PATH/scrape_config.json"
-    echo "  \"scrape_time\": \"$(date -Iseconds)\"" >> "$SESSION_PATH/scrape_config.json"
-    echo "}" >> "$SESSION_PATH/scrape_config.json"
-    
-    format_size() {
-      local bytes=$1
-      if [ -z "$bytes" ] || [ "$bytes" = "0" ]; then
-        echo "Unknown"
-      elif [ $bytes -gt 1073741824 ]; then
-        echo "$(echo "scale=2; $bytes / 1073741824" | bc) GB"
-      elif [ $bytes -gt 1048576 ]; then
-        echo "$(echo "scale=2; $bytes / 1048576" | bc) MB"
-      else
-        echo "$(echo "scale=2; $bytes / 1024" | bc) KB"
-      fi
-    }
-    
-    # Create empty files
-    touch "$SESSION_PATH/download_links.txt"
-    touch "$SESSION_PATH/download_links_with_size.txt"
-    
-    # HuggingFace API method (Enhanced with subfolder support)
-    if [[ "$TARGET_URL" == *"huggingface.co"* ]]; then
-      echo "Detected HuggingFace - using enhanced API method"
-      MODEL_PATH=$(echo "$TARGET_URL" | sed 's|https://huggingface.co/||' | sed 's|/tree/.*||' | sed 's|/blob/.*||' | sed 's|/resolve/.*||')
-      
-      # Clean model path
-      MODEL_PATH=$(echo "$MODEL_PATH" | cut -d'?' -f1 | cut -d'#' -f1)
-      
-      echo "Model path: $MODEL_PATH"
-      
-      # Try different API endpoints
-      API_URL="https://huggingface.co/api/models/$MODEL_PATH"
-      echo "Fetching from API: $API_URL"
-      
-      # Get all files including those in subdirectories
-      curl -sL "$API_URL" | jq -r '.siblings[].rfilename' 2>/dev/null | sort -u > "$SESSION_PATH/all_files.txt"
-      
-      # If no files found, try datasets endpoint
-      if [ ! -s "$SESSION_PATH/all_files.txt" ]; then
-        echo "No files from models API, trying datasets API..."
-        API_URL="https://huggingface.co/api/datasets/$MODEL_PATH"
-        curl -sL "$API_URL" | jq -r '.siblings[].rfilename' 2>/dev/null | sort -u > "$SESSION_PATH/all_files.txt"
-      fi
-      
-      # If still no files, try spaces endpoint
-      if [ ! -s "$SESSION_PATH/all_files.txt" ]; then
-        echo "No files from datasets API, trying spaces API..."
-        API_URL="https://huggingface.co/api/spaces/$MODEL_PATH"
-        curl -sL "$API_URL" | jq -r '.siblings[].rfilename' 2>/dev/null | sort -u > "$SESSION_PATH/all_files.txt"
-      fi
-      
-      TOTAL_FILES=$(wc -l < "$SESSION_PATH/all_files.txt" 2>/dev/null | tr -d ' ')
-      echo "Total files found in repository: ${TOTAL_FILES:-0}"
-      
-      if [ -s "$SESSION_PATH/all_files.txt" ]; then
-        echo "Sample files found:"
-        head -5 "$SESSION_PATH/all_files.txt"
-      fi
-      
-      if [ "$SHOW_ALL" = "true" ] || [ -z "$EXTENSIONS" ]; then
-        cp "$SESSION_PATH/all_files.txt" "$SESSION_PATH/filtered_files.txt" 2>/dev/null || true
-        echo "No extension filter - including ALL files"
-      else
-        EXT_PATTERN=$(echo "$EXTENSIONS" | sed 's/,/\\|/g')
-        grep -i "$EXT_PATTERN" "$SESSION_PATH/all_files.txt" > "$SESSION_PATH/filtered_files.txt" 2>/dev/null || true
-        FILTERED_COUNT=$(wc -l < "$SESSION_PATH/filtered_files.txt" 2>/dev/null | tr -d ' ')
-        echo "Filtered to $FILTERED_COUNT files matching extensions: $EXTENSIONS"
-      fi
-      
-      COUNTER=0
-      while IFS= read -r file
-      do
-        if [ -n "$file" ]; then
-          # URL encode spaces and special chars
-          ENCODED_FILE=$(echo "$file" | sed 's/ /%20/g' | sed 's/\[/%5B/g' | sed 's/\]/%5D/g' | sed 's/(/%28/g' | sed 's/)/%29/g')
-          FILE_URL="https://huggingface.co/$MODEL_PATH/resolve/main/$ENCODED_FILE"
+name: Web Scraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL to scrape'
+        required: true
+        type: string
+        default: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF'
+      file_extensions:
+        description: 'File extensions (comma separated - LEAVE EMPTY for ALL files)'
+        required: false
+        default: ''
+        type: string
+      min_file_size_mb:
+        description: 'Minimum file size in MB (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
+      max_file_size_mb:
+        description: 'Maximum file size in MB (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
+      max_pages:
+        description: 'Maximum number of files to show (0 = unlimited)'
+        required: false
+        default: '0'
+        type: string
+      show_all_links:
+        description: 'Show all links (ignore extension filter)'
+        required: false
+        type: boolean
+        default: false
+      recursive_depth:
+        description: 'Recursive depth (0=current page only)'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl bc
+
+      - name: Scrape website
+        id: scrape
+        run: |
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          EXTENSIONS="${{ github.event.inputs.file_extensions }}"
+          MIN_SIZE_MB="${{ github.event.inputs.min_file_size_mb }}"
+          MAX_SIZE_MB="${{ github.event.inputs.max_file_size_mb }}"
+          MAX_PAGES="${{ github.event.inputs.max_pages }}"
+          SHOW_ALL="${{ github.event.inputs.show_all_links }}"
+          DEPTH="${{ github.event.inputs.recursive_depth }}"
           
-          echo "Checking: $file"
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
-          # Get file size from HEAD request
-          SIZE_BYTES=$(curl -sI -L "$FILE_URL" | grep -i "^content-length:" | awk '{print $2}' | tr -d '\r')
+          MAIN_DIR="Scraped"
+          mkdir -p "$MAIN_DIR"
           
-          if [ -z "$SIZE_BYTES" ] || [ "$SIZE_BYTES" = "0" ]; then
-            # Try with different method for folders
-            if [[ "$file" == */ ]]; then
-              echo "  Skipping directory: $file"
-              continue
+          CLEAN_NAME=$(echo "$TARGET_URL" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's|[^a-zA-Z0-9._-]|_|g' | cut -c1-50)
+          SESSION_NAME="scrape_${TIMESTAMP}_${CLEAN_NAME}"
+          SESSION_PATH="$MAIN_DIR/$SESSION_NAME"
+          mkdir -p "$SESSION_PATH"
+          
+          echo "========================================="
+          echo "Web Scraper Starting"
+          echo "URL: $TARGET_URL"
+          echo "Session: $SESSION_PATH"
+          echo "========================================="
+          
+          # Save config
+          cat > "$SESSION_PATH/scrape_config.json" << EOF
+          {
+            "target_url": "$TARGET_URL",
+            "file_extensions": "$EXTENSIONS",
+            "min_file_size_mb": $MIN_SIZE_MB,
+            "max_file_size_mb": $MAX_SIZE_MB,
+            "max_pages": $MAX_PAGES,
+            "show_all_links": $SHOW_ALL,
+            "recursive_depth": $DEPTH,
+            "scrape_time": "$(date -Iseconds)"
+          }
+          EOF
+          
+          format_size() {
+            local bytes=$1
+            if [ -z "$bytes" ] || [ "$bytes" = "0" ]; then
+              echo "Unknown"
+            elif [ $bytes -gt 1073741824 ]; then
+              echo "$(echo "scale=2; $bytes / 1073741824" | bc) GB"
+            elif [ $bytes -gt 1048576 ]; then
+              echo "$(echo "scale=2; $bytes / 1048576" | bc) MB"
+            else
+              echo "$(echo "scale=2; $bytes / 1024" | bc) KB"
             fi
-          fi
+          }
           
-          SIZE_READABLE=$(format_size "$SIZE_BYTES")
-          SIZE_MB_INT=0
-          if [ -n "$SIZE_BYTES" ] && [ "$SIZE_BYTES" -gt 0 ]; then
-            SIZE_MB_INT=$((SIZE_BYTES / 1024 / 1024))
-          fi
+          touch "$SESSION_PATH/download_links.txt"
+          touch "$SESSION_PATH/download_links_with_size.txt"
           
-          SIZE_OK=true
-          MIN_SIZE_INT=${MIN_SIZE_MB:-0}
-          MAX_SIZE_INT=${MAX_SIZE_MB:-0}
-          
-          if [ "$MIN_SIZE_INT" -gt 0 ] && [ -n "$SIZE_BYTES" ] && [ "$SIZE_MB_INT" -lt "$MIN_SIZE_INT" ]; then
-            SIZE_OK=false
-            echo "  Size $SIZE_MB_INT MB < min $MIN_SIZE_INT MB - skipping"
-          fi
-          if [ "$MAX_SIZE_INT" -gt 0 ] && [ -n "$SIZE_BYTES" ] && [ "$SIZE_MB_INT" -gt "$MAX_SIZE_INT" ]; then
-            SIZE_OK=false
-            echo "  Size $SIZE_MB_INT MB > max $MAX_SIZE_INT MB - skipping"
-          fi
-          
-          MAX_PAGES_INT=0
-          if [ -n "$MAX_PAGES" ]; then
-            MAX_PAGES_INT=$((MAX_PAGES))
-          fi
-          
-          if [ "$SIZE_OK" = true ] && [ -n "$file" ]; then
-            if [ "$MAX_PAGES_INT" -eq 0 ] || [ "$COUNTER" -lt "$MAX_PAGES_INT" ]; then
-              echo "$FILE_URL|$SIZE_READABLE|$SIZE_MB_INT|$file" >> "$SESSION_PATH/download_links_with_size.txt"
-              echo "$FILE_URL" >> "$SESSION_PATH/download_links.txt"
-              COUNTER=$((COUNTER + 1))
-              echo "  ADDED: $file ($SIZE_READABLE)"
+          # HuggingFace scraping
+          if [[ "$TARGET_URL" == *"huggingface.co"* ]]; then
+            echo "Detected HuggingFace URL"
+            MODEL_PATH=$(echo "$TARGET_URL" | sed 's|https://huggingface.co/||' | sed 's|/tree/.*||' | sed 's|/blob/.*||' | sed 's|/resolve/.*||')
+            MODEL_PATH=$(echo "$MODEL_PATH" | cut -d'?' -f1)
+            
+            echo "Model path: $MODEL_PATH"
+            
+            # Fetch all files via API
+            curl -sL "https://huggingface.co/api/models/$MODEL_PATH" | jq -r '.siblings[].rfilename' > "$SESSION_PATH/all_files.txt" 2>/dev/null
+            curl -sL "https://huggingface.co/api/datasets/$MODEL_PATH" | jq -r '.siblings[].rfilename' >> "$SESSION_PATH/all_files.txt" 2>/dev/null
+            
+            sort -u "$SESSION_PATH/all_files.txt" -o "$SESSION_PATH/all_files.txt"
+            
+            TOTAL=$(wc -l < "$SESSION_PATH/all_files.txt")
+            echo "Total files found: $TOTAL"
+            
+            # Filter by extensions
+            if [ "$SHOW_ALL" = "true" ] || [ -z "$EXTENSIONS" ]; then
+              cp "$SESSION_PATH/all_files.txt" "$SESSION_PATH/filtered_files.txt"
+              echo "Including ALL files"
+            else
+              EXT_PATTERN=$(echo "$EXTENSIONS" | sed 's/,/\\|/g')
+              grep -E -i "$EXT_PATTERN" "$SESSION_PATH/all_files.txt" > "$SESSION_PATH/filtered_files.txt" || true
+              echo "Filtered by: $EXTENSIONS"
             fi
-          fi
-        fi
-      done < "$SESSION_PATH/filtered_files.txt"
-      
-      echo "Added $COUNTER files after filtering"
-    fi
-    
-    LINK_COUNT=$(wc -l < "$SESSION_PATH/download_links.txt" 2>/dev/null | tr -d ' ')
-    if [ -z "$LINK_COUNT" ]; then
-      LINK_COUNT=0
-    fi
-    echo "link_count=$LINK_COUNT" >> $GITHUB_OUTPUT
-    echo "session_path=$SESSION_PATH" >> $GITHUB_OUTPUT
-    
-    echo "Found $LINK_COUNT download links"
-    
-    # Create folders for each link
-    if [ -s "$SESSION_PATH/download_links_with_size.txt" ]; then
-      COUNTER=1
-      while IFS='|' read -r url size_display size_mb original_filename
-      do
-        if [ -n "$url" ]; then
-          # Use original filename or extract from URL
-          if [ -n "$original_filename" ] && [ "$original_filename" != " " ]; then
-            FILENAME=$(basename "$original_filename")
-          else
-            FILENAME=$(basename "$url" | cut -d'?' -f1 | cut -d'#' -f1)
+            
+            COUNTER=0
+            while IFS= read -r file; do
+              if [ -n "$file" ]; then
+                ENCODED=$(echo "$file" | sed 's/ /%20/g')
+                FILE_URL="https://huggingface.co/$MODEL_PATH/resolve/main/$ENCODED"
+                
+                SIZE_BYTES=$(curl -sI -L "$FILE_URL" | grep -i "^content-length:" | awk '{print $2}' | tr -d '\r')
+                SIZE_READABLE=$(format_size "$SIZE_BYTES")
+                SIZE_MB=$((SIZE_BYTES / 1024 / 1024))
+                
+                SIZE_OK=true
+                [ "$MIN_SIZE_MB" != "0" ] && [ "$SIZE_MB" -lt "$MIN_SIZE_MB" ] && SIZE_OK=false
+                [ "$MAX_SIZE_MB" != "0" ] && [ "$SIZE_MB" -gt "$MAX_SIZE_MB" ] && SIZE_OK=false
+                
+                if [ "$SIZE_OK" = true ]; then
+                  if [ "$MAX_PAGES" = "0" ] || [ $COUNTER -lt $MAX_PAGES ]; then
+                    echo "$FILE_URL|$SIZE_READABLE|$SIZE_MB|$file" >> "$SESSION_PATH/download_links_with_size.txt"
+                    echo "$FILE_URL" >> "$SESSION_PATH/download_links.txt"
+                    COUNTER=$((COUNTER + 1))
+                    echo "Added: $file ($SIZE_READABLE)"
+                  fi
+                fi
+              fi
+            done < "$SESSION_PATH/filtered_files.txt"
           fi
           
-          if [ -z "$FILENAME" ]; then
-            FILENAME="link_${COUNTER}"
+          LINK_COUNT=$(wc -l < "$SESSION_PATH/download_links.txt" 2>/dev/null | tr -d ' ')
+          echo "link_count=${LINK_COUNT:-0}" >> $GITHUB_OUTPUT
+          echo "session_path=$SESSION_PATH" >> $GITHUB_OUTPUT
+          
+          # Create folders for each link
+          if [ -s "$SESSION_PATH/download_links_with_size.txt" ]; then
+            COUNTER=1
+            while IFS='|' read -r url size_display size_mb filename; do
+              if [ -n "$url" ]; then
+                BASENAME=$(basename "$filename")
+                [ -z "$BASENAME" ] && BASENAME="link_$COUNTER"
+                FOLDER_NAME=$(echo "$BASENAME" | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-60)
+                FOLDER_PATH="$SESSION_PATH/$FOLDER_NAME"
+                mkdir -p "$FOLDER_PATH"
+                
+                cat > "$FOLDER_PATH/README.md" << EOF
+# Download Link: $BASENAME
+
+## Link Information
+
+| Property | Value |
+|----------|-------|
+| Source URL | $TARGET_URL |
+| Direct Link | [$url]($url) |
+| Filename | \`$BASENAME\` |
+| **File Size** | **$size_display** |
+| Scraped at | $(date '+%Y-%m-%d %H:%M:%S UTC') |
+
+## How to Download
+
+1. Copy this URL: \`$url\`
+2. Go to Actions -> GitHub Downloader
+3. Paste the URL and run
+
+---
+*Scraped by GitHub Actions*
+EOF
+                
+                cat > "$FOLDER_PATH/link_info.json" << EOF
+{
+  "index": $COUNTER,
+  "filename": "$BASENAME",
+  "direct_url": "$url",
+  "file_size": "$size_display",
+  "file_size_mb": $size_mb,
+  "source_url": "$TARGET_URL",
+  "scrape_time": "$(date -Iseconds)"
+}
+EOF
+                
+                echo "Created: $FOLDER_NAME"
+                COUNTER=$((COUNTER + 1))
+              fi
+            done < "$SESSION_PATH/download_links_with_size.txt"
           fi
           
-          # Clean folder name
-          FOLDER_NAME=$(echo "$FILENAME" | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-60)
-          if [ -z "$FOLDER_NAME" ]; then
-            FOLDER_NAME="link_${COUNTER}"
+          ACTUAL_COUNT=$((COUNTER - 1))
+          
+          # Master summary
+          cat > "$SESSION_PATH/MASTER_SUMMARY.md" << EOF
+# Web Scraper Results
+
+## Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Source URL | $TARGET_URL |
+| File Extensions | ${EXTENSIONS:-ALL FILES} |
+| Min File Size | $MIN_SIZE_MB MB |
+| Max File Size | $MAX_SIZE_MB MB |
+| Max Pages | $MAX_PAGES |
+| Show All Links | $SHOW_ALL |
+| Recursive Depth | $DEPTH |
+| Scrape Time | $(date '+%Y-%m-%d %H:%M:%S UTC') |
+| **Links Found** | **$ACTUAL_COUNT** |
+EOF
+          
+          echo "Scraping complete. Found $ACTUAL_COUNT links."
+
+      - name: Display results in job summary
+        run: |
+          echo "## Web Scraper Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Source URL | ${{ github.event.inputs.target_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Links Found | ${{ steps.scrape.outputs.link_count }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit and push
+        run: |
+          git add Scraped/ --force
+          if ! git diff --cached --quiet; then
+            git commit -m "Add scraped data [skip ci]"
+            git push origin HEAD:"${GITHUB_REF_NAME}" || true
           fi
-          
-          FOLDER_PATH="$SESSION_PATH/$FOLDER_NAME"
-          mkdir -p "$FOLDER_PATH"
-          
-          echo "# Download Link: $FILENAME" > "$FOLDER_PATH/README.md"
-          echo "" >> "$FOLDER_PATH/README.md"
-          echo "## Link Information" >> "$FOLDER_PATH/README.md"
-          echo "" >> "$FOLDER_PATH/README.md"
-          echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
-          echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
-          echo "| Source URL | $TARGET_URL |" >> "$FOLDER_PATH/README.md"
-          echo "| Direct Link | [$url]($url) |" >> "$FOLDER_PATH/README.md"
-          echo "| Filename | \`$FILENAME\` |" >> "$FOLDER_PATH/README.md"
-          echo "| **File Size** | **$size_display** |" >> "$FOLDER_PATH/README.md"
-          echo "| Scraped at | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> "$FOLDER_PATH/README.md"
-          echo "" >> "$FOLDER_PATH/README.md"
-          echo "## How to Download" >> "$FOLDER_PATH/README.md"
-          echo "" >> "$FOLDER_PATH/README.md"
-          echo "1. Copy this URL: \`$url\`" >> "$FOLDER_PATH/README.md"
-          echo "2. Go to Actions -> GitHub Downloader" >> "$FOLDER_PATH/README.md"
-          echo "3. Paste the URL and run" >> "$FOLDER_PATH/README.md"
-          echo "" >> "$FOLDER_PATH/README.md"
-          echo "---" >> "$FOLDER_PATH/README.md"
-          echo "*Scraped by GitHub Actions*" >> "$FOLDER_PATH/README.md"
-          
-          echo "{" > "$FOLDER_PATH/link_info.json"
-          echo "  \"index\": $COUNTER," >> "$FOLDER_PATH/link_info.json"
-          echo "  \"filename\": \"$FILENAME\"," >> "$FOLDER_PATH/link_info.json"
-          echo "  \"direct_url\": \"$url\"," >> "$FOLDER_PATH/link_info.json"
-          echo "  \"file_size\": \"$size_display\"," >> "$FOLDER_PATH/link_info.json"
-          echo "  \"file_size_mb\": $size_mb," >> "$FOLDER_PATH/link_info.json"
-          echo "  \"source_url\": \"$TARGET_URL\"," >> "$FOLDER_PATH/link_info.json"
-          echo "  \"scrape_time\": \"$(date -Iseconds)\"" >> "$FOLDER_PATH/link_info.json"
-          echo "}" >> "$FOLDER_PATH/link_info.json"
-          
-          echo "Created folder: $FOLDER_NAME ($size_display)"
-          COUNTER=$((COUNTER + 1))
-        fi
-      done < "$SESSION_PATH/download_links_with_size.txt"
-    fi
-    
-    ACTUAL_COUNT=$((COUNTER - 1))
-    if [ -z "$ACTUAL_COUNT" ]; then
-      ACTUAL_COUNT=0
-    fi
-    
-    # Master summary
-    echo "# Web Scraper Results" > "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "## Configuration" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Parameter | Value |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "|-----------|-------|" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Source URL | $TARGET_URL |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    if [ -z "$EXTENSIONS" ]; then
-      echo "| File Extensions | **ALL FILES (no filter)** |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    else
-      echo "| File Extensions | \`$EXTENSIONS\` |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    fi
-    echo "| Min File Size | $MIN_SIZE_MB MB |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Max File Size | $MAX_SIZE_MB MB |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Max Pages | $MAX_PAGES |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Show All Links | $SHOW_ALL |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Recursive Depth | $DEPTH |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| Scrape Time | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "| **Links Found** | **$ACTUAL_COUNT** |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    
-    if [ -s "$SESSION_PATH/download_links_with_size.txt" ]; then
-      echo "## Download Links (with sizes)" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "| # | Filename | Size | Direct Link |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "|---|----------|------|-------------|" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      
-      CNT=1
-      while IFS='|' read -r url size_display size_mb original_filename
-      do
-        if [ -n "$url" ]; then
-          if [ -n "$original_filename" ] && [ "$original_filename" != " " ]; then
-            FILENAME=$(basename "$original_filename")
-          else
-            FILENAME=$(basename "$url" | cut -d'?' -f1)
-          fi
-          echo "| $CNT | \`$FILENAME\` | **$size_display** | [Download]($url) |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-          CNT=$((CNT + 1))
-        fi
-      done < "$SESSION_PATH/download_links_with_size.txt"
-    else
-      echo "## No links found" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "No matching download links were found with the given filters." >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "### Possible reasons:" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "- The URL may not contain downloadable files" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "- File extension filter may be too restrictive" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-      echo "- Size limits may exclude all files" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-    fi
-    
-    echo "========================================="
-    echo "Scraping complete. Found $ACTUAL_COUNT links."
-    echo "Results saved in: $SESSION_PATH"
-    echo "========================================="
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-data-${{ github.run_id }}
+          path: Scraped/
+          retention-days: 7
