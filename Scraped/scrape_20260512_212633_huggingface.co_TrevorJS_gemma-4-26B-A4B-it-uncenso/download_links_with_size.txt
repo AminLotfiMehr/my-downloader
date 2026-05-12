@@ -1,0 +1,4 @@
+https://huggingface.co/TrevorJS/gemma-4-26B-A4B-it-uncensored-GGUF/resolve/main/gemma-4-26B-A4B-it-uncensored-Q4_K_M.gguf|1397
+16402354.56 KB|0|gemma-4-26B-A4B-it-uncensored-Q4_K_M.gguf
+https://huggingface.co/TrevorJS/gemma-4-26B-A4B-it-uncensored-GGUF/resolve/main/gemma-4-26B-A4B-it-uncensored-Q8_0.gguf|1389
+26230326.56 KB|0|gemma-4-26B-A4B-it-uncensored-Q8_0.gguf
