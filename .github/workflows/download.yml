@@ -1,1 +1,48 @@
+name: File Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'لینک فایل مورد نظر را اینجا وارد کنید'
+        required: true
+        default: ''
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download File
+        run: |
+          # دریافت لینک از ورودی کاربر
+          URL="${{ github.event.inputs.url }}"
+          
+          # استخراج نام فایل از لینک
+          FILENAME=$(basename "$URL")
+          
+          echo "🔍 در حال دانلود: $FILENAME"
+          
+          # دستور دانلود فایل
+          curl -L "$URL" -o "$FILENAME"
+          
+          if [ -f "$FILENAME" ]; then
+            echo "✅ دانلود با موفقیت انجام شد."
+          else
+            echo "❌ خطا در دانلود فایل!"
+            exit 1
+          fi
+
+      - name: Commit and Push file
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .
+          git commit -m "📥 دانلود فایل جدید توسط کاربر" || echo "تغییری ایجاد نشد"
+          git push
 
