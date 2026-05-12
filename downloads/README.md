@@ -4,4 +4,4 @@ This folder contains files downloaded by GitHub Downloader.
 
 ## Folders
 
-- [10MB.zip](10MB.zip/)
+- [DeepSeek-R1-Distill-Qwen-7B-Uncensored.i1-IQ1_M](./DeepSeek-R1-Distill-Qwen-7B-Uncensored.i1-IQ1_M/)
