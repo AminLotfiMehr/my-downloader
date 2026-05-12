@@ -103,28 +103,17 @@ jobs:
           echo "Session: $SESSION_PATH"
           echo "========================================="
           
-          # Save config
-          cat > "$SESSION_PATH/scrape_config.json" << 'JSONEOF'
-          {
-            "target_url": "TARGET_URL_PLACEHOLDER",
-            "file_extensions": "EXTENSIONS_PLACEHOLDER",
-            "min_file_size_mb": MIN_SIZE_PLACEHOLDER,
-            "max_file_size_mb": MAX_SIZE_PLACEHOLDER,
-            "max_pages": MAX_PAGES_PLACEHOLDER,
-            "show_all_links": SHOW_ALL_PLACEHOLDER,
-            "recursive_depth": DEPTH_PLACEHOLDER,
-            "scrape_time": "TIME_PLACEHOLDER"
-          }
-          JSONEOF
-          
-          sed -i "s|TARGET_URL_PLACEHOLDER|$TARGET_URL|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|EXTENSIONS_PLACEHOLDER|$EXTENSIONS|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|MIN_SIZE_PLACEHOLDER|$MIN_SIZE_MB|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|MAX_SIZE_PLACEHOLDER|$MAX_SIZE_MB|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|MAX_PAGES_PLACEHOLDER|$MAX_PAGES|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|SHOW_ALL_PLACEHOLDER|$SHOW_ALL|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|DEPTH_PLACEHOLDER|$DEPTH|g" "$SESSION_PATH/scrape_config.json"
-          sed -i "s|TIME_PLACEHOLDER|$(date -Iseconds)|g" "$SESSION_PATH/scrape_config.json"
+          # Create config file
+          echo "{" > "$SESSION_PATH/scrape_config.json"
+          echo "  \"target_url\": \"$TARGET_URL\"," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"file_extensions\": \"$EXTENSIONS\"," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"min_file_size_mb\": $MIN_SIZE_MB," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"max_file_size_mb\": $MAX_SIZE_MB," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"max_pages\": $MAX_PAGES," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"show_all_links\": $SHOW_ALL," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"recursive_depth\": $DEPTH," >> "$SESSION_PATH/scrape_config.json"
+          echo "  \"scrape_time\": \"$(date -Iseconds)\"" >> "$SESSION_PATH/scrape_config.json"
+          echo "}" >> "$SESSION_PATH/scrape_config.json"
           
           format_size() {
             local bytes=$1
@@ -240,7 +229,7 @@ jobs:
           
           echo "Found $LINK_COUNT download links"
           
-          # Create folders
+          # Create folders for each link
           if [ -s "$SESSION_PATH/download_links_with_size.txt" ]; then
             COUNTER=1
             while IFS='|' read -r url size_display size_mb; do
@@ -258,41 +247,34 @@ jobs:
                 FOLDER_PATH="$SESSION_PATH/$FOLDER_NAME"
                 mkdir -p "$FOLDER_PATH"
                 
-                cat > "$FOLDER_PATH/README.md" << FOEFOLDER
-# Download Link: $FILENAME
-
-## Link Information
-
-| Property | Value |
-|----------|-------|
-| Source URL | $TARGET_URL |
-| Direct Link | [$url]($url) |
-| Filename | \`$FILENAME\` |
-| **File Size** | **$size_display** |
-| Min Size Filter | $MIN_SIZE_MB MB |
-| Max Size Filter | $MAX_SIZE_MB MB |
-| Scraped at | $(date '+%Y-%m-%d %H:%M:%S UTC') |
-
-## How to Download
-
-1. Copy this URL: \`$url\`
-2. Go to Actions -> GitHub Downloader
-3. Paste the URL and run
-
----
-*Scraped by GitHub Actions*
-FOEFOLDER
+                # Create README.md
+                echo "# Download Link: $FILENAME" > "$FOLDER_PATH/README.md"
+                echo "" >> "$FOLDER_PATH/README.md"
+                echo "## Link Information" >> "$FOLDER_PATH/README.md"
+                echo "" >> "$FOLDER_PATH/README.md"
+                echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
+                echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
+                echo "| Source URL | $TARGET_URL |" >> "$FOLDER_PATH/README.md"
+                echo "| Direct Link | [$url]($url) |" >> "$FOLDER_PATH/README.md"
+                echo "| Filename | \`$FILENAME\` |" >> "$FOLDER_PATH/README.md"
+                echo "| **File Size** | **$size_display** |" >> "$FOLDER_PATH/README.md"
+                echo "| Scraped at | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> "$FOLDER_PATH/README.md"
+                echo "" >> "$FOLDER_PATH/README.md"
+                echo "## How to Download" >> "$FOLDER_PATH/README.md"
+                echo "" >> "$FOLDER_PATH/README.md"
+                echo "1. Copy this URL: \`$url\`" >> "$FOLDER_PATH/README.md"
+                echo "2. Go to Actions -> GitHub Downloader" >> "$FOLDER_PATH/README.md"
+                echo "3. Paste the URL and run" >> "$FOLDER_PATH/README.md"
                 
-                cat > "$FOLDER_PATH/link_info.json" << FOEJSON
-{
-  "index": $COUNTER,
-  "filename": "$FILENAME",
-  "direct_url": "$url",
-  "file_size": "$size_display",
-  "source_url": "$TARGET_URL",
-  "scrape_time": "$(date -Iseconds)"
-}
-FOEJSON
+                # Create link_info.json
+                echo "{" > "$FOLDER_PATH/link_info.json"
+                echo "  \"index\": $COUNTER," >> "$FOLDER_PATH/link_info.json"
+                echo "  \"filename\": \"$FILENAME\"," >> "$FOLDER_PATH/link_info.json"
+                echo "  \"direct_url\": \"$url\"," >> "$FOLDER_PATH/link_info.json"
+                echo "  \"file_size\": \"$size_display\"," >> "$FOLDER_PATH/link_info.json"
+                echo "  \"source_url\": \"$TARGET_URL\"," >> "$FOLDER_PATH/link_info.json"
+                echo "  \"scrape_time\": \"$(date -Iseconds)\"" >> "$FOLDER_PATH/link_info.json"
+                echo "}" >> "$FOLDER_PATH/link_info.json"
                 
                 echo "Created: $FOLDER_NAME ($size_display)"
                 COUNTER=$((COUNTER + 1))
@@ -303,38 +285,47 @@ FOEJSON
           ACTUAL_COUNT=$((COUNTER - 1))
           [ -z "$ACTUAL_COUNT" ] && ACTUAL_COUNT=0
           
-          # Master summary
-          cat > "$SESSION_PATH/MASTER_SUMMARY.md" << FOESUM
-# Web Scraper Results
-
-## Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Source URL | $TARGET_URL |
-| File Extensions | $(if [ -z "$EXTENSIONS" ]; then echo "**ALL FILES (no filter)**"; else echo "\`$EXTENSIONS\`"; fi) |
-| Min File Size | $MIN_SIZE_MB MB |
-| Max File Size | $MAX_SIZE_MB MB |
-| Max Pages | $MAX_PAGES |
-| Show All Links | $SHOW_ALL |
-| Recursive Depth | $DEPTH |
-| Scrape Time | $(date '+%Y-%m-%d %H:%M:%S UTC') |
-| **Links Found** | **$ACTUAL_COUNT** |
-
-## Download Links (with sizes)
-
-| # | Filename | Size | Direct Link |
-|---|----------|------|-------------|
-FOESUM
+          # Create MASTER_SUMMARY.md
+          echo "# Web Scraper Results" > "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "## Configuration" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Parameter | Value |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "|-----------|-------|" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Source URL | $TARGET_URL |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          if [ -z "$EXTENSIONS" ]; then
+            echo "| File Extensions | **ALL FILES (no filter)** |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          else
+            echo "| File Extensions | \`$EXTENSIONS\` |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          fi
+          echo "| Min File Size | $MIN_SIZE_MB MB |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Max File Size | $MAX_SIZE_MB MB |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Max Pages | $MAX_PAGES |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Show All Links | $SHOW_ALL |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Recursive Depth | $DEPTH |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| Scrape Time | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "| **Links Found** | **$ACTUAL_COUNT** |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
           
-          CNT=1
-          while IFS='|' read -r url size_display size_mb; do
-            if [ -n "$url" ]; then
-              FILENAME=$(basename "$url" | cut -d'?' -f1)
-              echo "| $CNT | \`$FILENAME\` | **$size_display** | [Download]($url) |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-              CNT=$((CNT + 1))
-            fi
-          done < "$SESSION_PATH/download_links_with_size.txt"
+          if [ -s "$SESSION_PATH/download_links_with_size.txt" ]; then
+            echo "## Download Links (with sizes)" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+            echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+            echo "| # | Filename | Size | Direct Link |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+            echo "|---|----------|------|-------------|" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+            
+            CNT=1
+            while IFS='|' read -r url size_display size_mb; do
+              if [ -n "$url" ]; then
+                FILENAME=$(basename "$url" | cut -d'?' -f1)
+                echo "| $CNT | \`$FILENAME\` | **$size_display** | [Download]($url) |" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+                CNT=$((CNT + 1))
+              fi
+            done < "$SESSION_PATH/download_links_with_size.txt"
+          else
+            echo "## No links found" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+            echo "" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+            echo "No matching download links were found with the given filters." >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          fi
           
           echo "========================================="
           echo "Scraping complete. Found $ACTUAL_COUNT links."
@@ -365,33 +356,21 @@ FOESUM
 
       - name: Commit and push
         run: |
-          echo "=== Current directory contents ==="
-          ls -la
-          
-          echo "=== Scraped directory contents ==="
-          ls -la Scraped/ || echo "Scraped directory not found"
-          
           echo "=== Git status before add ==="
           git status
           
-          # Force add everything
           git add Scraped/ --force
-          git add . --force
           
           echo "=== Git status after add ==="
           git status
           
-          # Check if there are changes to commit
           if git diff --cached --quiet; then
             echo "No changes to commit"
-            # Still create artifact even if no changes
             exit 0
           fi
           
-          echo "=== Committing changes ==="
-          git commit -m "Add scraped data - $(date '+%Y-%m-%d %H:%M:%S') [skip ci]"
+          git commit -m "Add scraped data [skip ci]"
           
-          echo "=== Pushing changes ==="
           for i in 1 2 3; do
             if git push origin HEAD:"${GITHUB_REF_NAME}" 2>&1; then
               echo "Push successful on attempt $i"
@@ -404,7 +383,6 @@ FOESUM
           done
           
           echo "Warning: Could not push after 3 attempts"
-          echo "Files are still available in artifact"
           exit 0
 
       - name: Upload artifact
