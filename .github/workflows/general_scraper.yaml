@@ -27,6 +27,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Scrape website
         id: scrape
         run: |
@@ -154,10 +159,14 @@ jobs:
 
       - name: Commit and push
         run: |
+          git pull origin "${GITHUB_REF_NAME}" --rebase || true
           git add Scraped/
           if ! git diff --cached --quiet; then
             git commit -m "Add scraped data [skip ci]"
             git push origin HEAD:"${GITHUB_REF_NAME}"
+            echo "Push successful"
+          else
+            echo "No changes to commit"
           fi
 
       - name: Upload artifact
