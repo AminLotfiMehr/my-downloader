@@ -1,0 +1,443 @@
+name: 🕷️ General Web Scraper (Extract Download Links)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'آدرس کامل صفحه مورد نظر (مثلاً https://example.com/page)'
+        required: true
+        type: string
+      file_extensions:
+        description: 'پسوندهای مورد نظر (مثلاً .gguf,.bin,.zip,.mp4) - با کاما جدا کنید'
+        required: false
+        default: '.gguf,.bin,.safetensors'
+      min_file_size_mb:
+        description: 'حداقل حجم فایل بر حسب مگابایت (اختیاری)'
+        required: false
+        default: '0'
+        type: string
+      show_all_links:
+        description: 'نمایش همه لینک‌ها (بدون فیلتر پسوند)'
+        required: false
+        type: boolean
+        default: false
+      recursive_depth:
+        description: 'عمق اسکرپ لایه‌ای (0 فقط صفحه اصلی، 1 لینک‌های صفحه اول را هم می‌گیرد)'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl html-xml-utils wget grep sed
+          pip3 install requests beautifulsoup4 lxml --break-system-packages 2>/dev/null || \
+          pip3 install requests beautifulsoup4 lxml
+
+      - name: Scrape website for links
+        id: scrape
+        run: |
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          EXTENSIONS="${{ github.event.inputs.file_extensions }}"
+          MIN_SIZE_MB="${{ github.event.inputs.min_file_size_mb }}"
+          SHOW_ALL="${{ github.event.inputs.show_all_links }}"
+          DEPTH="${{ github.event.inputs.recursive_depth }}"
+          
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          OUTPUT_DIR="scraped_data_${TIMESTAMP}"
+          mkdir -p "$OUTPUT_DIR"
+          
+          echo "========================================="
+          echo "🕷️ Starting web scraper"
+          echo "🌐 Target URL: $TARGET_URL"
+          echo "📁 Output directory: $OUTPUT_DIR"
+          echo "========================================="
+          
+          # ایجاد اسکریپت پایتون برای اسکرپ حرفه‌ای
+          cat > scraper.py << 'PYEOF'
+          import sys
+          import json
+          import re
+          import requests
+          from urllib.parse import urljoin, urlparse
+          from bs4 import BeautifulSoup
+          from collections import defaultdict
+          
+          def get_all_links(url, base_url=None):
+              """استخراج همه لینک‌های یک صفحه"""
+              try:
+                  headers = {
+                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                  }
+                  response = requests.get(url, timeout=30, headers=headers)
+                  response.raise_for_status()
+                  
+                  soup = BeautifulSoup(response.text, 'lxml')
+                  links = []
+                  
+                  # استخراج از تگ‌های a
+                  for a in soup.find_all('a', href=True):
+                      href = a['href']
+                      full_url = urljoin(base_url or url, href)
+                      text = a.get_text(strip=True)[:200] if a.get_text(strip=True) else ''
+                      links.append({
+                          'url': full_url,
+                          'text': text,
+                          'type': 'anchor'
+                      })
+                  
+                  # استخراج از تگ‌های link (CSS, etc)
+                  for link in soup.find_all('link', href=True):
+                      full_url = urljoin(base_url or url, link['href'])
+                      links.append({
+                          'url': full_url,
+                          'text': link.get('rel', [''])[0],
+                          'type': 'link'
+                      })
+                  
+                  # استخراج از تگ‌های script (src)
+                  for script in soup.find_all('script', src=True):
+                      full_url = urljoin(base_url or url, script['src'])
+                      links.append({
+                          'url': full_url,
+                          'text': '',
+                          'type': 'script'
+                      })
+                  
+                  # استخراج از تگ‌های img (src)
+                  for img in soup.find_all('img', src=True):
+                      full_url = urljoin(base_url or url, img['src'])
+                      links.append({
+                          'url': full_url,
+                          'text': img.get('alt', ''),
+                          'type': 'image'
+                      })
+                  
+                  # تشخیص لینک‌های مستقیم فایل از داخل متن (regex)
+                  text_content = response.text
+                  url_pattern = r'https?://[^\s<>"\'{}|\\^`\[\]]+\.(?:[a-zA-Z0-9]+)(?:\?[^\s<>"\'{}|\\^`\[\]]*)?'
+                  found_urls = re.findall(url_pattern, text_content)
+                  
+                  for found_url in found_urls:
+                      # بررسی نکنه تکراری نباشد
+                      existing = any(l['url'] == found_url for l in links)
+                      if not existing:
+                          links.append({
+                              'url': found_url,
+                              'text': '',
+                              'type': 'regex'
+                          })
+                  
+                  return links, soup, response.text
+              except Exception as e:
+                  print(f"Error scraping {url}: {e}", file=sys.stderr)
+                  return [], None, ""
+          
+          def has_file_extension(url, extensions):
+              """بررسی آیا لینک پسوند مورد نظر را دارد"""
+              url_lower = url.lower()
+              for ext in extensions:
+                  if ext.lower() in url_lower or url_lower.endswith(ext):
+                      return True
+              return False
+          
+          def guess_file_size(url):
+              """تلاش برای حدس حجم فایل از روی هدرها"""
+              try:
+                  headers = {
+                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                  }
+                  response = requests.head(url, timeout=10, headers=headers, allow_redirects=True)
+                  content_length = response.headers.get('content-length')
+                  if content_length and content_length.isdigit():
+                      return int(content_length)
+              except:
+                  pass
+              return None
+          
+          def main():
+              target_url = sys.argv[1] if len(sys.argv) > 1 else ''
+              extensions = sys.argv[2].split(',') if len(sys.argv) > 2 else ['.gguf', '.bin']
+              min_size_mb = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 0
+              show_all = sys.argv[4].lower() == 'true' if len(sys.argv) > 4 else False
+              depth = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+              output_dir = sys.argv[6] if len(sys.argv) > 6 else '.'
+              
+              min_size_bytes = min_size_mb * 1024 * 1024
+              
+              print(f"Scraping: {target_url}")
+              print(f"Extensions filter: {extensions}")
+              print(f"Min size: {min_size_mb} MB")
+              print(f"Show all links: {show_all}")
+              print(f"Recursive depth: {depth}")
+              
+              all_links, soup, raw_html = get_all_links(target_url, target_url)
+              
+              # فیلتر لینک‌ها
+              filtered_links = []
+              
+              for link in all_links:
+                  url = link['url']
+                  
+                  if show_all:
+                      filtered_links.append(link)
+                      continue
+                  
+                  if has_file_extension(url, extensions):
+                      # تلاش برای گرفتن حجم فایل
+                      size_bytes = guess_file_size(url)
+                      size_mb = size_bytes / (1024 * 1024) if size_bytes else None
+                      
+                      if min_size_bytes == 0 or (size_bytes and size_bytes >= min_size_bytes):
+                          link['size_bytes'] = size_bytes
+                          link['size_mb'] = round(size_mb, 2) if size_mb else None
+                          filtered_links.append(link)
+              
+              # اگر عمق اسکرپ بیشتر از 0 باشد، لینک‌های داخلی را هم بررسی کن
+              if depth >= 1 and not show_all:
+                  print(f"\n🔍 Recursive scraping (depth={depth})...")
+                  # پیدا کردن لینک‌های داخلی (هم‌دامنه)
+                  domain = urlparse(target_url).netloc
+                  internal_links = []
+                  
+                  for link in all_links:
+                      url = link['url']
+                      parsed = urlparse(url)
+                      if parsed.netloc == domain or parsed.netloc == '':
+                          if url not in [l['url'] for l in filtered_links]:
+                              if has_file_extension(url, extensions):
+                                  internal_links.append(url)
+                  
+                  # اسکرپ هر لینک داخلی (محدود به 20 لینک اول برای جلوگیری از زیاد شدن)
+                  for internal_url in internal_links[:20]:
+                      print(f"  Scraping: {internal_url[:80]}...")
+                      sub_links, _, _ = get_all_links(internal_url, internal_url)
+                      for sub_link in sub_links:
+                          sub_url = sub_link['url']
+                          if has_file_extension(sub_url, extensions):
+                              size_bytes = guess_file_size(sub_url)
+                              size_mb = size_bytes / (1024 * 1024) if size_bytes else None
+                              if min_size_bytes == 0 or (size_bytes and size_bytes >= min_size_bytes):
+                                  # جلوگیری از تکراری
+                                  if not any(l['url'] == sub_url for l in filtered_links):
+                                      sub_link['size_bytes'] = size_bytes
+                                      sub_link['size_mb'] = round(size_mb, 2) if size_mb else None
+                                      filtered_links.append(sub_link)
+              
+              # ذخیره نتایج
+              with open(f'{output_dir}/all_links.json', 'w', encoding='utf-8') as f:
+                  json.dump(all_links, f, indent=2, ensure_ascii=False)
+              
+              with open(f'{output_dir}/filtered_links.json', 'w', encoding='utf-8') as f:
+                  json.dump(filtered_links, f, indent=2, ensure_ascii=False)
+              
+              # ذخیره HTML خام برای بررسی
+              with open(f'{output_dir}/page_source.html', 'w', encoding='utf-8') as f:
+                  f.write(raw_html)
+              
+              # فایل متنی ساده با لینک‌ها
+              with open(f'{output_dir}/download_links.txt', 'w', encoding='utf-8') as f:
+                  for link in filtered_links:
+                      f.write(f"{link['url']}\n")
+              
+              print(f"\n✅ Found {len(filtered_links)} download links")
+              print(f"📁 Results saved to {output_dir}/")
+              
+              # نمایش چند لینک اول
+              if filtered_links:
+                  print("\n📋 First 5 links:")
+                  for i, link in enumerate(filtered_links[:5]):
+                      size_str = f" ({link['size_mb']} MB)" if link.get('size_mb') else ""
+                      print(f"  {i+1}. {link['url'][:100]}{size_str}")
+          
+          if __name__ == '__main__':
+              main()
+          PYEOF
+          
+          # اجرای اسکریپت
+          python3 scraper.py "$TARGET_URL" "$EXTENSIONS" "$MIN_SIZE_MB" "$SHOW_ALL" "$DEPTH" "$OUTPUT_DIR"
+          
+          # ذخیره خروجی‌ها
+          LINK_COUNT=$(cat "$OUTPUT_DIR/download_links.txt" 2>/dev/null | wc -l)
+          echo "link_count=$LINK_COUNT" >> $GITHUB_OUTPUT
+          echo "output_dir=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+          
+          echo "========================================="
+          echo "✅ Scraping completed!"
+          echo "📊 Total download links found: $LINK_COUNT"
+          echo "========================================="
+
+      - name: Generate HTML report
+        run: |
+          OUTPUT_DIR="${{ steps.scrape.outputs.output_dir }}"
+          LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          
+          cat > "$OUTPUT_DIR/report.html" << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="UTF-8">
+              <title>Web Scraper Results</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; direction: ltr; }
+                  h1 { color: #2c3e50; }
+                  .stats { background: #ecf0f1; padding: 15px; border-radius: 8px; margin: 20px 0; }
+                  table { border-collapse: collapse; width: 100%; }
+                  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                  th { background-color: #3498db; color: white; }
+                  tr:nth-child(even) { background-color: #f2f2f2; }
+                  .link { word-break: break-all; }
+                  a { color: #3498db; text-decoration: none; }
+                  a:hover { text-decoration: underline; }
+              </style>
+          </head>
+          <body>
+              <h1>🕷️ Web Scraper Results</h1>
+              <div class="stats">
+                  <p><strong>Source URL:</strong> <a href="HTMLEOF
+          
+          echo "$TARGET_URL" >> "$OUTPUT_DIR/report.html"
+          
+          cat >> "$OUTPUT_DIR/report.html" << 'HTMLEOF'
+          </a></p>
+                  <p><strong>Total Download Links Found:</strong> HTMLEOF
+          
+          echo "$LINK_COUNT" >> "$OUTPUT_DIR/report.html"
+          
+          cat >> "$OUTPUT_DIR/report.html" << 'HTMLEOF'
+                  </p>
+                  <p><strong>Scrape Time:</strong> HTMLEOF
+          
+          echo "$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$OUTPUT_DIR/report.html"
+          
+          cat >> "$OUTPUT_DIR/report.html" << 'HTMLEOF'
+                  </p>
+              </div>
+              <h2>📥 Download Links</h2>
+              <table>
+                  <tr>
+                      <th>#</th>
+                      <th>URL</th>
+                      <th>Size</th>
+                  </tr>
+          HTMLEOF
+          
+          # اضافه کردن لینک‌ها به جدول
+          COUNTER=1
+          while IFS= read -r url; do
+            if [ -n "$url" ]; then
+              echo "                  <tr>" >> "$OUTPUT_DIR/report.html"
+              echo "                      <td>$COUNTER</td>" >> "$OUTPUT_DIR/report.html"
+              echo "                      <td class=\"link\"><a href=\"$url\" target=\"_blank\">$url</a></td>" >> "$OUTPUT_DIR/report.html"
+              echo "                      <td>--</td>" >> "$OUTPUT_DIR/report.html"
+              echo "                  </tr>" >> "$OUTPUT_DIR/report.html"
+              COUNTER=$((COUNTER + 1))
+            fi
+          done < "$OUTPUT_DIR/download_links.txt"
+          
+          cat >> "$OUTPUT_DIR/report.html" << 'HTMLEOF'
+              </table>
+          </body>
+          </html>
+          HTMLEOF
+          
+          echo "HTML report generated at $OUTPUT_DIR/report.html"
+
+      - name: Create markdown summary
+        run: |
+          OUTPUT_DIR="${{ steps.scrape.outputs.output_dir }}"
+          LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+          
+          cat > "$OUTPUT_DIR/SUMMARY.md" << EOF
+          # 🕷️ Web Scraper Results
+
+          **Scrape Time:** $TIMESTAMP  
+          **Source URL:** [$TARGET_URL]($TARGET_URL)  
+          **Download Links Found:** **$LINK_COUNT**
+
+          ## 📥 Download Links
+
+          EOF
+          
+          COUNTER=1
+          while IFS= read -r url; do
+            if [ -n "$url" ]; then
+              echo "$COUNTER. [$url]($url)" >> "$OUTPUT_DIR/SUMMARY.md"
+              COUNTER=$((COUNTER + 1))
+            fi
+          done < "$OUTPUT_DIR/download_links.txt"
+          
+          echo "" >> "$OUTPUT_DIR/SUMMARY.md"
+          echo "---" >> "$OUTPUT_DIR/SUMMARY.md"
+          echo "*Generated by GitHub Actions Web Scraper*" >> "$OUTPUT_DIR/SUMMARY.md"
+
+      - name: Upload results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-data-${{ github.run_id }}
+          path: |
+            ${{ steps.scrape.outputs.output_dir }}/
+          retention-days: 7
+
+      - name: Update main README with latest scrape
+        run: |
+          OUTPUT_DIR="${{ steps.scrape.outputs.output_dir }}"
+          LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+          
+          if [ ! -f "README.md" ]; then
+            echo "# 🚀 Web Scraper & Downloader" > README.md
+            echo "" >> README.md
+            echo "Tools to scrape websites and download files using GitHub Actions." >> README.md
+            echo "" >> README.md
+          fi
+          
+          # اضافه کردن به تاریخچه
+          cat >> README.md << EOF
+
+          ## 📊 Latest Scrape ($TIMESTAMP)
+
+          - **Source:** [$TARGET_URL]($TARGET_URL)
+          - **Links Found:** $LINK_COUNT
+          - **Results:** [Download Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+          EOF
+
+      - name: Show results in job summary
+        run: |
+          OUTPUT_DIR="${{ steps.scrape.outputs.output_dir }}"
+          LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
+          
+          echo "## 🎯 Scraping Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Download links found:** $LINK_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download the Artifact" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The artifact \`scraped-data-${{ github.run_id }}\` contains:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`download_links.txt\` - Plain text list of all URLs" >> $GITHUB_STEP_SUMMARY
+          echo "- \`filtered_links.json\` - JSON with metadata" >> $GITHUB_STEP_SUMMARY
+          echo "- \`report.html\` - Beautiful HTML report" >> $GITHUB_STEP_SUMMARY
+          echo "- \`SUMMARY.md\` - Markdown summary" >> $GITHUB_STEP_SUMMARY
