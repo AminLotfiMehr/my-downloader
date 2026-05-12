@@ -1,4 +1,4 @@
-name: دانلود از سایتهای فیلتر شده 
+name: دانلودر فایل 
 
 on:
   workflow_dispatch:
