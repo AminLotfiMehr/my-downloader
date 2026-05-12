@@ -46,6 +46,7 @@ jobs:
           sudo apt-get install -y aria2 zip curl
 
       - name: Download files
+        id: download
         run: |
           URLS="${{ github.event.inputs.urls }}"
           MODE="${{ github.event.inputs.mode }}"
@@ -59,6 +60,7 @@ jobs:
           }
           
           COUNTER=1
+          DOWNLOAD_COUNT=0
           for URL in $URLS; do
             FILENAME=$(basename "$URL" | cut -d'?' -f1 | cut -d'#' -f1)
             if [ -z "$FILENAME" ] || [ "$FILENAME" = "$URL" ]; then
@@ -93,6 +95,7 @@ jobs:
               printf '\n---\n*Downloaded by GitHub Downloader*\n' >> "$FOLDER_PATH/README.md"
               
               echo "Downloaded: $FILENAME"
+              DOWNLOAD_COUNT=$((DOWNLOAD_COUNT + 1))
             else
               echo "Failed: $FILENAME"
               echo "Download failed for: $URL" > "$FOLDER_PATH/ERROR.txt"
@@ -111,15 +114,40 @@ jobs:
               printf -- '- [%s](%s/)\n' "$folder_name" "$folder_name" >> "$MAIN_DIR/README.md"
             fi
           done
+          
+          echo "download_count=$DOWNLOAD_COUNT" >> $GITHUB_OUTPUT
 
       - name: Commit and push
         run: |
-          git pull origin "${GITHUB_REF_NAME}" --rebase || true
-          git add downloads/
-          if ! git diff --cached --quiet; then
-            git commit -m "Add downloaded files [skip ci]"
-            git push origin HEAD:"${GITHUB_REF_NAME}"
-            echo "Push successful"
-          else
+          # بررسی وجود تغییر
+          if [ -z "$(git status --porcelain)" ]; then
             echo "No changes to commit"
+            exit 0
           fi
+          
+          # افزودن فایل‌ها
+          git add downloads/
+          
+          # بررسی اینکه آیا چیزی برای commit وجود دارد
+          if git diff --cached --quiet; then
+            echo "No changes staged for commit"
+            exit 0
+          fi
+          
+          # commit
+          git commit -m "Add downloaded files [skip ci]"
+          
+          # push با retry
+          for i in 1 2 3; do
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              echo "Push successful"
+              exit 0
+            else
+              echo "Push failed, attempt $i/3, pulling latest changes..."
+              git pull origin "${GITHUB_REF_NAME}" --rebase
+              sleep 2
+            fi
+          done
+          
+          echo "Failed to push after 3 attempts"
+          exit 1
