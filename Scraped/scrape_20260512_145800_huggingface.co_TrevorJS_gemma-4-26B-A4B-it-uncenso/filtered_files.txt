@@ -1,2 +1,0 @@
-gemma-4-26B-A4B-it-uncensored-Q4_K_M.gguf
-gemma-4-26B-A4B-it-uncensored-Q8_0.gguf
