@@ -1,15 +1,15 @@
-name: 🕷️ General Web Scraper
+name: Web Scraper
 
 on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'آدرس کامل صفحه مورد نظر'
+        description: 'Target URL to scrape'
         required: true
         type: string
         default: 'https://huggingface.co/TrevorJS/gemma-4-26B-A4B-it-uncensored-GGUF'
       file_extensions:
-        description: 'پسوندهای مورد نظر (مثال: .gguf,.bin)'
+        description: 'File extensions (comma separated)'
         required: false
         default: '.gguf'
 
@@ -27,7 +27,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Scrape and organize
+      - name: Scrape website
         id: scrape
         run: |
           TARGET_URL="${{ github.event.inputs.target_url }}"
@@ -35,63 +35,54 @@ jobs:
           
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
-          # پوشه اصلی اسکراپ (ریشه پروژه)
-          MAIN_SCRAPED_DIR="Scraped"
-          mkdir -p "$MAIN_SCRAPED_DIR"
+          MAIN_DIR="Scraped"
+          mkdir -p "$MAIN_DIR"
           
-          # نام پوشه جلسه (بر اساس آدرس و زمان)
           CLEAN_NAME=$(echo "$TARGET_URL" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-50)
           SESSION_NAME="scrape_${TIMESTAMP}_${CLEAN_NAME}"
-          SESSION_PATH="$MAIN_SCRAPED_DIR/$SESSION_NAME"
+          SESSION_PATH="$MAIN_DIR/$SESSION_NAME"
           mkdir -p "$SESSION_PATH"
           
-          echo "========================================="
-          echo "🕷️ Web Scraper Starting"
-          echo "🌐 URL: $TARGET_URL"
-          echo "📁 Session folder: $SESSION_PATH"
-          echo "========================================="
+          echo "Scraping: $TARGET_URL"
+          echo "Session: $SESSION_PATH"
           
           DOWNLOAD_LINKS=""
           
-          # روش API برای HuggingFace
           if [[ "$TARGET_URL" == *"huggingface.co"* ]]; then
             MODEL_PATH=$(echo "$TARGET_URL" | sed 's|https://huggingface.co/||' | sed 's|/tree/.*||' | sed 's|/blob/.*||')
             API_URL="https://huggingface.co/api/models/$MODEL_PATH"
             
-            curl -sL "$API_URL" | jq -r '.siblings[].rfilename' 2>/dev/null > "$SESSION_PATH/all_files.txt"
+            curl -sL "$API_URL" | jq -r '.siblings[].rfilename' > "$SESSION_PATH/all_files.txt"
             
             EXT=$(echo "$EXTENSIONS" | cut -d',' -f1)
             grep -i "$EXT" "$SESSION_PATH/all_files.txt" > "$SESSION_PATH/filtered_files.txt" 2>/dev/null || true
             
             while IFS= read -r file; do
               if [ -n "$file" ]; then
-                DIRECT_URL="https://huggingface.co/$MODEL_PATH/resolve/main/$file"
-                echo "$DIRECT_URL" >> "$SESSION_PATH/download_links.txt"
+                echo "https://huggingface.co/$MODEL_PATH/resolve/main/$file" >> "$SESSION_PATH/download_links.txt"
               fi
             done < "$SESSION_PATH/filtered_files.txt"
           fi
           
-          # روش HTML scraping
           if [ ! -s "$SESSION_PATH/download_links.txt" ]; then
             curl -sL -H "User-Agent: Mozilla/5.0" "$TARGET_URL" > "$SESSION_PATH/page.html"
-            
             EXT_PATTERN=$(echo "$EXTENSIONS" | sed 's/,/|/g' | sed 's/\.//g')
-            grep -Eo 'https?://[^"]+\.('"$EXT_PATTERN"')' "$SESSION_PATH/page.html" | sort -u > "$SESSION_PATH/download_links.txt"
+            grep -Eo 'https?://[^"]+\.('"$EXT_PATTERN"')' "$SESSION_PATH/page.html" | sort -u > "$SESSION_PATH/download_links.txt" 2>/dev/null || true
           fi
           
-          LINK_COUNT=$(wc -l < "$SESSION_PATH/download_links.txt" 2>/dev/null || echo "0")
-          echo "✅ Found $LINK_COUNT download links"
+          LINK_COUNT=$(wc -l < "$SESSION_PATH/download_links.txt" 2>/dev/null | tr -d ' ')
+          echo "link_count=$LINK_COUNT" >> $GITHUB_OUTPUT
+          echo "session_path=$SESSION_PATH" >> $GITHUB_OUTPUT
           
-          # ساخت پوشه برای هر لینک (با نام لینک)
           COUNTER=1
           while IFS= read -r url; do
             if [ -n "$url" ]; then
-              # استخراج نام فایل از لینک
               FILENAME=$(basename "$url" | cut -d'?' -f1 | cut -d'#' -f1)
-              [ -z "$FILENAME" ] && FILENAME="link_${COUNTER}"
+              if [ -z "$FILENAME" ]; then
+                FILENAME="link_${COUNTER}"
+              fi
               
-              # نام پوشه = نام فایل (تمیز شده)
-              FOLDER_NAME=$(echo "$FILENAME" | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-80)
+              FOLDER_NAME=$(echo "$FILENAME" | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-60)
               if [ -z "$FOLDER_NAME" ]; then
                 FOLDER_NAME="link_${COUNTER}"
               fi
@@ -99,130 +90,79 @@ jobs:
               FOLDER_PATH="$SESSION_PATH/$FOLDER_NAME"
               mkdir -p "$FOLDER_PATH"
               
-              # فایل README داخل پوشه
-              cat > "$FOLDER_PATH/README.md" << EOF
-# 🔗 Download Link: $FILENAME
-
-## 📋 Link Information
-
-| Property | Value |
-|----------|-------|
-| **Source URL** | $TARGET_URL |
-| **Direct Link** | [$url]($url) |
-| **Filename** | \`$FILENAME\` |
-| **Scraped at** | $(date '+%Y-%m-%d %H:%M:%S UTC') |
-
-## 🚀 How to Download
-
-1. Copy this URL: \`$url\`
-2. Go to **Actions** → **GitHub Downloader**
-3. Click **Run workflow**
-4. Paste the URL in the \`urls\` field
-5. Click **Run workflow**
-
----
-*Scraped by GitHub Actions Web Scraper*
-EOF
+              printf '# Download Link: %s\n\n' "$FILENAME" > "$FOLDER_PATH/README.md"
+              printf '## Link Information\n\n' >> "$FOLDER_PATH/README.md"
+              printf '| Property | Value |\n' >> "$FOLDER_PATH/README.md"
+              printf '|----------|-------|\n' >> "$FOLDER_PATH/README.md"
+              printf '| Source URL | %s |\n' "$TARGET_URL" >> "$FOLDER_PATH/README.md"
+              printf '| Direct Link | [%s](%s) |\n' "$url" "$url" >> "$FOLDER_PATH/README.md"
+              printf '| Filename | `%s` |\n' "$FILENAME" >> "$FOLDER_PATH/README.md"
+              printf '| Scraped at | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$FOLDER_PATH/README.md"
+              printf '\n## How to Download\n\n' >> "$FOLDER_PATH/README.md"
+              printf '1. Copy this URL: `%s`\n' "$url" >> "$FOLDER_PATH/README.md"
+              printf '2. Go to Actions -> GitHub Downloader\n' >> "$FOLDER_PATH/README.md"
+              printf '3. Paste the URL and run\n' >> "$FOLDER_PATH/README.md"
+              printf '\n---\n*Scraped by GitHub Actions*\n' >> "$FOLDER_PATH/README.md"
               
-              # فایل JSON
-              cat > "$FOLDER_PATH/link_info.json" << EOF
-{
-  "index": $COUNTER,
-  "filename": "$FILENAME",
-  "direct_url": "$url",
-  "source_url": "$TARGET_URL",
-  "scrape_time": "$(date -Iseconds)"
-}
-EOF
+              printf '{\n' > "$FOLDER_PATH/link_info.json"
+              printf '  "index": %d,\n' "$COUNTER" >> "$FOLDER_PATH/link_info.json"
+              printf '  "filename": "%s",\n' "$FILENAME" >> "$FOLDER_PATH/link_info.json"
+              printf '  "direct_url": "%s",\n' "$url" >> "$FOLDER_PATH/link_info.json"
+              printf '  "source_url": "%s",\n' "$TARGET_URL" >> "$FOLDER_PATH/link_info.json"
+              printf '  "scrape_time": "%s"\n' "$(date -Iseconds)" >> "$FOLDER_PATH/link_info.json"
+              printf '}\n' >> "$FOLDER_PATH/link_info.json"
               
-              echo "  ✓ Created: $FOLDER_NAME"
+              echo "Created: $FOLDER_NAME"
               COUNTER=$((COUNTER + 1))
             fi
           done < "$SESSION_PATH/download_links.txt"
           
           ACTUAL_COUNT=$((COUNTER - 1))
-          echo "link_count=$ACTUAL_COUNT" >> $GITHUB_OUTPUT
-          echo "session_path=$SESSION_PATH" >> $GITHUB_OUTPUT
           
-          # فایل SUMMARY اصلی جلسه
-          cat > "$SESSION_PATH/00_MASTER_SUMMARY.md" << EOF
-# 🕷️ Web Scraper Results
-
-## 📊 Summary
-
-| Property | Value |
-|----------|-------|
-| **Source URL** | $TARGET_URL |
-| **Scrape Time** | $(date '+%Y-%m-%d %H:%M:%S UTC') |
-| **Links Found** | $ACTUAL_COUNT |
-| **Extensions** | $EXTENSIONS |
-
-## 📁 Download Links
-
-EOF
+          printf '# Web Scraper Results\n\n' > "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '## Summary\n\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Property | Value |\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '|----------|-------|\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Source URL | %s |\n' "$TARGET_URL" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Scrape Time | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Links Found | %s |\n' "$ACTUAL_COUNT" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Extensions | %s |\n' "$EXTENSIONS" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '\n## Download Links\n\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
           
           COUNTER=1
           while IFS= read -r url; do
             if [ -n "$url" ]; then
               FILENAME=$(basename "$url" | cut -d'?' -f1)
-              [ -z "$FILENAME" ] && FILENAME="link_${COUNTER}"
-              echo "$COUNTER. [$FILENAME]($url)" >> "$SESSION_PATH/00_MASTER_SUMMARY.md"
+              printf '%d. [%s](%s)\n' "$COUNTER" "$FILENAME" "$url" >> "$SESSION_PATH/MASTER_SUMMARY.md"
               COUNTER=$((COUNTER + 1))
             fi
           done < "$SESSION_PATH/download_links.txt"
           
-          echo "========================================="
-          echo "✅ Scraping complete!"
-          echo "📁 Main folder: Scraped/"
-          echo "📁 Session: $SESSION_NAME"
-          echo "📊 Links: $ACTUAL_COUNT"
-          echo "========================================="
+          echo "Scraping complete. Found $ACTUAL_COUNT links."
 
-      - name: Display results in job summary
+      - name: Display results
         run: |
-          SESSION_PATH="${{ steps.scrape.outputs.session_path }}"
           LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
           TARGET_URL="${{ github.event.inputs.target_url }}"
           
-          echo "## 🎯 Scraping Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Scraping Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Source URL** | $TARGET_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Download Links Found** | **$LINK_COUNT** |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "$LINK_COUNT" -gt 0 ] && [ -f "$SESSION_PATH/download_links.txt" ]; then
-            echo "## 📥 Download Links" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| # | Filename | Direct Link |" >> $GITHUB_STEP_SUMMARY
-            echo "|---|----------|-------------|" >> $GITHUB_STEP_SUMMARY
-            
-            COUNTER=1
-            while IFS= read -r url; do
-              if [ -n "$url" ]; then
-                FILENAME=$(basename "$url" | cut -d'?' -f1)
-                [ -z "$FILENAME" ] && FILENAME="link_${COUNTER}"
-                echo "| $COUNTER | \`$FILENAME\` | [Download Link]($url) |" >> $GITHUB_STEP_SUMMARY
-                COUNTER=$((COUNTER + 1))
-              fi
-            done < "$SESSION_PATH/download_links.txt"
-          fi
+          echo "| Source URL | $TARGET_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Links Found | $LINK_COUNT |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Commit and push scraped data
+      - name: Commit and push
         run: |
           git add Scraped/
           if ! git diff --cached --quiet; then
-            git commit -m "🕷️ Add scraped data [skip ci]"
+            git commit -m "Add scraped data [skip ci]"
             git push origin HEAD:"${GITHUB_REF_NAME}"
-            echo "✅ Scraped data pushed successfully"
-          else
-            echo "ℹ️ No new scraped data to push"
           fi
 
-      - name: Upload as artifact (backup)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scraped-data-${{ github.run_id }}
+          name: scraped-data
           path: ${{ steps.scrape.outputs.session_path }}/
           retention-days: 7
