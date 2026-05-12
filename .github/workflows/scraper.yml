@@ -1,4 +1,4 @@
-name: Web Scraper321
+name: Web Scraper full
 
 on:
   workflow_dispatch:
@@ -321,7 +321,13 @@ jobs:
 
       - name: Commit and push
         run: |
+          echo "=== Git status before add ==="
+          git status
+          
           git add Scraped/ --force
+          
+          echo "=== Git status after add ==="
+          git status
           
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -331,22 +337,19 @@ jobs:
           git commit -m "Add scraped data [skip ci]"
           
           for i in 1 2 3; do
-            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
-              echo "Push successful"
-              exit 0
+            if git push origin HEAD:"${GITHUB_REF_NAME}" 2>&1; then
+              echo "Push successful on attempt $i"
+              break
             else
               echo "Push failed, attempt $i/3"
               git pull origin "${GITHUB_REF_NAME}" --rebase || true
-              sleep 2
+              sleep 3
             fi
           done
-          
-          echo "Warning: Could not push, but continuing"
-          exit 0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scraped-data
-          path: ${{ steps.scrape.outputs.session_path }}/
+          name: scraped-data-${{ github.run_id }}
+          path: Scraped/
           retention-days: 7
