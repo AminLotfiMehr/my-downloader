@@ -1,14 +1,14 @@
-name: ⬇️ GitHub Downloader
+name: GitHub Downloader
 
 on:
   workflow_dispatch:
     inputs:
       urls:
-        description: '🔗 لینک‌های دانلود (با فاصله جدا کنید)'
+        description: 'Download URLs (space separated)'
         required: true
         type: string
       mode:
-        description: '📦 حالت دانلود'
+        description: 'Download mode'
         required: false
         default: 'normal'
         type: choice
@@ -16,7 +16,7 @@ on:
           - normal
           - zip
       password:
-        description: '🔒 رمز عبور برای فایل زیپ (اختیاری)'
+        description: 'ZIP password (optional)'
         required: false
         type: string
 
@@ -45,106 +45,77 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y aria2 zip curl
 
-      - name: Download and organize
+      - name: Download files
         run: |
           URLS="${{ github.event.inputs.urls }}"
           MODE="${{ github.event.inputs.mode }}"
           ZIP_PASSWORD="${{ github.event.inputs.password }}"
           
-          # پوشه اصلی دانلود (ریشه پروژه)
-          MAIN_DOWNLOAD_DIR="downloads"
-          mkdir -p "$MAIN_DOWNLOAD_DIR"
+          MAIN_DIR="downloads"
+          mkdir -p "$MAIN_DIR"
           
           clean_name() {
-            echo "$1" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-80
+            echo "$1" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-60
           }
           
           COUNTER=1
           for URL in $URLS; do
-            # استخراج نام فایل از لینک
             FILENAME=$(basename "$URL" | cut -d'?' -f1 | cut -d'#' -f1)
             if [ -z "$FILENAME" ] || [ "$FILENAME" = "$URL" ]; then
               FILENAME="download_${COUNTER}"
             fi
             
-            # نام پوشه (نام لینک)
             FOLDER_NAME=$(clean_name "$FILENAME")
-            # اگر تکراری بود، شماره اضافه کن
-            if [ -d "$MAIN_DOWNLOAD_DIR/$FOLDER_NAME" ]; then
+            if [ -d "$MAIN_DIR/$FOLDER_NAME" ]; then
               FOLDER_NAME="${FOLDER_NAME}_${COUNTER}"
             fi
             
-            FOLDER_PATH="$MAIN_DOWNLOAD_DIR/$FOLDER_NAME"
+            FOLDER_PATH="$MAIN_DIR/$FOLDER_NAME"
             mkdir -p "$FOLDER_PATH"
             
-            echo "📥 Downloading: $URL"
-            echo "📁 Target folder: $FOLDER_PATH"
+            echo "Downloading: $URL"
+            echo "Target: $FOLDER_PATH/$FILENAME"
             
-            # دانلود فایل
-            aria2c -x 4 -s 4 -k 20M \
-              --max-tries=5 \
-              --retry-wait=10 \
-              --allow-overwrite=true \
-              -d "$FOLDER_PATH" -o "$FILENAME" "$URL" 2>/dev/null || \
-            curl -L --retry 5 -o "$FOLDER_PATH/$FILENAME" "$URL"
+            aria2c -x 4 -s 4 -k 20M --max-tries=5 --retry-wait=10 --allow-overwrite=true -d "$FOLDER_PATH" -o "$FILENAME" "$URL" 2>/dev/null || curl -L --retry 5 -o "$FOLDER_PATH/$FILENAME" "$URL"
             
             if [ -f "$FOLDER_PATH/$FILENAME" ] && [ -s "$FOLDER_PATH/$FILENAME" ]; then
               SIZE=$(stat -c%s "$FOLDER_PATH/$FILENAME" 2>/dev/null || echo "0")
               SIZE_MB=$((SIZE / 1024 / 1024))
               
-              # ساخت فایل README داخل پوشه
-              cat > "$FOLDER_PATH/README.md" << EOF
-# Download: $FILENAME
-
-## 📥 Download Information
-
-| Property | Value |
-|----------|-------|
-| **Source URL** | $URL |
-| **Filename** | \`$FILENAME\` |
-| **Size** | ${SIZE_MB} MB |
-| **Download Date** | $(date '+%Y-%m-%d %H:%M:%S UTC') |
-
-## 🔗 Original Link
-
-\`$URL\`
-
----
-*Downloaded by GitHub Downloader*
-EOF
-              echo "✅ Downloaded: $FILENAME → $FOLDER_PATH/"
+              printf '# Download: %s\n\n' "$FILENAME" > "$FOLDER_PATH/README.md"
+              printf '## Download Information\n\n' >> "$FOLDER_PATH/README.md"
+              printf '| Property | Value |\n' >> "$FOLDER_PATH/README.md"
+              printf '|----------|-------|\n' >> "$FOLDER_PATH/README.md"
+              printf '| Source URL | %s |\n' "$URL" >> "$FOLDER_PATH/README.md"
+              printf '| Filename | `%s` |\n' "$FILENAME" >> "$FOLDER_PATH/README.md"
+              printf '| Size | %s MB |\n' "$SIZE_MB" >> "$FOLDER_PATH/README.md"
+              printf '| Download Date | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$FOLDER_PATH/README.md"
+              printf '\n---\n*Downloaded by GitHub Downloader*\n' >> "$FOLDER_PATH/README.md"
+              
+              echo "Downloaded: $FILENAME"
             else
-              echo "❌ Failed: $FILENAME"
-              echo "Failed to download: $URL" > "$FOLDER_PATH/ERROR.txt"
+              echo "Failed: $FILENAME"
+              echo "Download failed for: $URL" > "$FOLDER_PATH/ERROR.txt"
             fi
             
             COUNTER=$((COUNTER + 1))
           done
           
-          # آپدیت README اصلی پوشه downloads
-          cat > "$MAIN_DOWNLOAD_DIR/README.md" << EOF
-# 📥 Downloaded Files
-
-This folder contains files downloaded by the GitHub Downloader workflow.
-
-## 📁 Folders
-
-EOF
+          printf '# Downloads\n\n' > "$MAIN_DIR/README.md"
+          printf 'This folder contains files downloaded by GitHub Downloader.\n\n' >> "$MAIN_DIR/README.md"
+          printf '## Folders\n\n' >> "$MAIN_DIR/README.md"
           
-          for folder in "$MAIN_DOWNLOAD_DIR"/*/; do
+          for folder in "$MAIN_DIR"/*/; do
             if [ -d "$folder" ]; then
               folder_name=$(basename "$folder")
-              echo "- [$folder_name]($folder_name/)" >> "$MAIN_DOWNLOAD_DIR/README.md"
+              printf -- '- [%s](%s/)\n' "$folder_name" "$folder_name" >> "$MAIN_DIR/README.md"
             fi
           done
 
-      - name: Commit and push downloads
+      - name: Commit and push
         run: |
           git add downloads/
           if ! git diff --cached --quiet; then
-            git commit -m "📥 Add downloaded files [skip ci]"
+            git commit -m "Add downloaded files [skip ci]"
             git push origin HEAD:"${GITHUB_REF_NAME}"
-            echo "✅ Downloads pushed successfully"
-          else
-            echo "ℹ️ No new downloads to push"
           fi
