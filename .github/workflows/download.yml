@@ -37,8 +37,8 @@ jobs:
       - name: Configure Git
         run: |
           git config --global http.postBuffer 524288000
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install dependencies
         run: |
@@ -114,8 +114,12 @@ jobs:
 
       - name: Commit and push
         run: |
+          git pull origin "${GITHUB_REF_NAME}" --rebase || true
           git add downloads/
           if ! git diff --cached --quiet; then
             git commit -m "Add downloaded files [skip ci]"
             git push origin HEAD:"${GITHUB_REF_NAME}"
+            echo "Push successful"
+          else
+            echo "No changes to commit"
           fi
