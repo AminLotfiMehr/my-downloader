@@ -1,34 +1,17 @@
-name: 🕷️ General Web Scraper (With Organized Folders)
+name: 🕷️ General Web Scraper
 
 on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'آدرس کامل صفحه مورد نظر (مثلاً https://example.com/page)'
+        description: 'آدرس کامل صفحه مورد نظر'
         required: true
         type: string
+        default: 'https://huggingface.co/TrevorJS/gemma-4-26B-A4B-it-uncensored-GGUF'
       file_extensions:
-        description: 'پسوندهای مورد نظر (مثال: .gguf,.bin,.zip,.mp4) - با کاما جدا کنید'
+        description: 'پسوندهای مورد نظر (مثال: .gguf,.bin)'
         required: false
-        default: '.gguf,.bin,.safetensors'
-      min_file_size_mb:
-        description: 'حداقل حجم فایل بر حسب مگابایت (اختیاری)'
-        required: false
-        default: '0'
-        type: string
-      show_all_links:
-        description: 'نمایش همه لینک‌ها (بدون فیلتر پسوند)'
-        required: false
-        type: boolean
-        default: false
-      recursive_depth:
-        description: 'عمق اسکرپ - 0=فقط صفحه اصلی، 1=لینک‌های صفحه اول'
-        required: false
-        default: '0'
-        type: choice
-        options:
-          - '0'
-          - '1'
+        default: '.gguf'
 
 jobs:
   scrape:
@@ -44,319 +27,202 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl html-xml-utils wget grep sed
-          pip3 install requests beautifulsoup4 lxml --break-system-packages 2>/dev/null || \
-          pip3 install requests beautifulsoup4 lxml
-
-      - name: Scrape and create organized folders
+      - name: Scrape and organize
         id: scrape
         run: |
           TARGET_URL="${{ github.event.inputs.target_url }}"
           EXTENSIONS="${{ github.event.inputs.file_extensions }}"
-          MIN_SIZE_MB="${{ github.event.inputs.min_file_size_mb }}"
-          SHOW_ALL="${{ github.event.inputs.show_all_links }}"
-          DEPTH="${{ github.event.inputs.recursive_depth }}"
           
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
-          # پوشه مادر
-          MASTER_FOLDER="scraped_data"
-          mkdir -p "$MASTER_FOLDER"
+          # پوشه اصلی اسکراپ (ریشه پروژه)
+          MAIN_SCRAPED_DIR="Scraped"
+          mkdir -p "$MAIN_SCRAPED_DIR"
           
-          # پوشه مختص این اسکرپ (با زمان)
-          SESSION_FOLDER="$MASTER_FOLDER/scrape_${TIMESTAMP}_$(echo "$TARGET_URL" | sed 's|https\?://||' | sed 's|/|_|g' | cut -c1-50)"
-          mkdir -p "$SESSION_FOLDER"
-          
-          echo "========================================="
-          echo "🕷️ Starting web scraper with organized folders"
-          echo "🌐 Target URL: $TARGET_URL"
-          echo "📁 Master folder: $MASTER_FOLDER"
-          echo "📁 Session folder: $SESSION_FOLDER"
-          echo "========================================="
-          
-          # ایجاد اسکریپت پایتون پیشرفته
-          cat > scraper.py << 'PYEOF'
-          import sys
-          import json
-          import re
-          import os
-          import requests
-          from urllib.parse import urljoin, urlparse, unquote
-          from bs4 import BeautifulSoup
-          from collections import defaultdict
-          import hashlib
-          
-          def clean_filename(text):
-              """تبدیل URL یا متن به نام فایل معتبر"""
-              # حذف پروتکل
-              text = re.sub(r'^https?://', '', text)
-              # حذف کاراکترهای نامعتبر
-              text = re.sub(r'[<>:"/\\|?*]', '_', text)
-              # محدودیت طول
-              if len(text) > 80:
-                  text = text[:77] + '...'
-              return text
-          
-          def get_all_links(url, base_url=None):
-              """استخراج همه لینک‌های یک صفحه"""
-              try:
-                  headers = {
-                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                  }
-                  response = requests.get(url, timeout=30, headers=headers)
-                  response.raise_for_status()
-                  
-                  soup = BeautifulSoup(response.text, 'lxml')
-                  links = []
-                  
-                  for a in soup.find_all('a', href=True):
-                      href = a['href']
-                      full_url = urljoin(base_url or url, href)
-                      text = a.get_text(strip=True)[:200] if a.get_text(strip=True) else ''
-                      links.append({
-                          'url': full_url,
-                          'text': text,
-                          'type': 'anchor'
-                      })
-                  
-                  # لینک‌های مستقیم از متن
-                  url_pattern = r'https?://[^\s<>"\'{}|\\^`\[\]]+'
-                  found_urls = re.findall(url_pattern, response.text)
-                  for found_url in found_urls:
-                      if not any(l['url'] == found_url for l in links):
-                          links.append({
-                              'url': found_url,
-                              'text': '',
-                              'type': 'regex'
-                          })
-                  
-                  return links, soup, response.text
-              except Exception as e:
-                  print(f"Error scraping {url}: {e}", file=sys.stderr)
-                  return [], None, ""
-          
-          def has_file_extension(url, extensions):
-              """بررسی پسوند"""
-              url_lower = url.lower()
-              for ext in extensions:
-                  if ext.lower() in url_lower or url_lower.endswith(ext):
-                      return True
-              return False
-          
-          def get_filename_from_url(url):
-              """استخراج نام فایل از URL"""
-              parsed = urlparse(url)
-              path = unquote(parsed.path)
-              filename = os.path.basename(path)
-              if not filename or '.' not in filename:
-                  # اگر نام فایل مشخص نیست، از هش استفاده کن
-                  filename = hashlib.md5(url.encode()).hexdigest()[:16] + '.file'
-              return filename
-          
-          def main():
-              target_url = sys.argv[1]
-              extensions = [e.strip() for e in sys.argv[2].split(',')] if len(sys.argv) > 2 else ['.gguf']
-              min_size_mb = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 0
-              show_all = sys.argv[4].lower() == 'true' if len(sys.argv) > 4 else False
-              depth = int(sys.argv[5]) if len(sys.argv) > 5 else 0
-              session_folder = sys.argv[6] if len(sys.argv) > 6 else 'scraped_data'
-              
-              min_size_bytes = min_size_mb * 1024 * 1024
-              
-              print(f"Scraping: {target_url}")
-              
-              all_links, soup, raw_html = get_all_links(target_url, target_url)
-              
-              # فیلتر لینک‌های دانلود
-              download_links = []
-              
-              for link in all_links:
-                  url = link['url']
-                  
-                  if show_all:
-                      download_links.append(link)
-                      continue
-                  
-                  if has_file_extension(url, extensions):
-                      download_links.append(link)
-              
-              # ذخیره اطلاعات اصلی
-              with open(f'{session_folder}/00_source_info.json', 'w', encoding='utf-8') as f:
-                  json.dump({
-                      'target_url': target_url,
-                      'scrape_time': __import__('datetime').datetime.now().isoformat(),
-                      'extensions_filter': extensions,
-                      'total_links_found': len(download_links),
-                      'show_all_links': show_all,
-                      'recursive_depth': depth
-                  }, f, indent=2, ensure_ascii=False)
-              
-              # ذخیره HTML اصلی
-              with open(f'{session_folder}/00_page_source.html', 'w', encoding='utf-8') as f:
-                  f.write(raw_html)
-              
-              # لیست همه لینک‌ها (برای مرور سریع)
-              with open(f'{session_folder}/00_all_links.txt', 'w', encoding='utf-8') as f:
-                  for link in download_links:
-                      f.write(f"{link['url']}\n")
-              
-              # برای هر لینک دانلود، یک پوشه جداگانه بساز
-              print(f"\n📁 Creating {len(download_links)} folders for each download link...")
-              
-              for idx, link in enumerate(download_links, 1):
-                  url = link['url']
-                  filename = get_filename_from_url(url)
-                  
-                  # نام پوشه: شماره + نام فایل
-                  folder_name = f"{idx:03d}_{clean_filename(filename)}"
-                  folder_path = os.path.join(session_folder, folder_name)
-                  os.makedirs(folder_path, exist_ok=True)
-                  
-                  # ذخیره اطلاعات این لینک در پوشه خودش
-                  link_info = {
-                      'index': idx,
-                      'url': url,
-                      'filename': filename,
-                      'source_text': link.get('text', '')[:500],
-                      'link_type': link.get('type', 'unknown')
-                  }
-                  
-                  with open(f'{folder_path}/link_info.json', 'w', encoding='utf-8') as f:
-                      json.dump(link_info, f, indent=2, ensure_ascii=False)
-                  
-                  # فایل README داخل هر پوشه
-                  with open(f'{folder_path}/README.md', 'w', encoding='utf-8') as f:
-                      f.write(f"# Download Link #{idx}\n\n")
-                      f.write(f"## 🔗 Direct URL\n\n")
-                      f.write(f"[{url}]({url})\n\n")
-                      f.write(f"## 📁 Original Filename\n\n`{filename}`\n\n")
-                      if link.get('text'):
-                          f.write(f"## 📝 Link Text\n\n{link['text']}\n\n")
-                      f.write(f"---\n\n")
-                      f.write(f"## 🚀 How to download\n\n")
-                      f.write(f"1. Copy the URL above\n")
-                      f.write(f"2. Go to the **GitHub Downloader** workflow\n")
-                      f.write(f"3. Paste the URL and run\n\n")
-                      f.write(f"*Generated by GitHub Actions Web Scraper*\n")
-                  
-                  # فایل خالی به نام .download-me (برای نشان دادن اینکه این پوشه لینک دانلود دارد)
-                  with open(f'{folder_path}/.download-me', 'w') as f:
-                      f.write(f"URL: {url}\n")
-                  
-                  print(f"  ✓ Created folder: {folder_name}")
-              
-              # فایل SUMMARY کلی
-              with open(f'{session_folder}/00_MASTER_SUMMARY.md', 'w', encoding='utf-8') as f:
-                  f.write(f"# 🕷️ Web Scraper Results\n\n")
-                  f.write(f"**Source URL:** {target_url}\n\n")
-                  f.write(f"**Scrape Time:** {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
-                  f.write(f"**Total Download Links Found:** {len(download_links)}\n\n")
-                  f.write(f"---\n\n")
-                  f.write(f"## 📁 Folder Structure\n\n")
-                  f.write(f"Each download link has its own folder with `link_info.json` and `README.md`\n\n")
-                  f.write(f"| # | Folder Name | File Name |\n")
-                  f.write(f"|---|-------------|-----------|\n")
-                  
-                  for idx, link in enumerate(download_links, 1):
-                      filename = get_filename_from_url(link['url'])
-                      folder_name = f"{idx:03d}_{clean_filename(filename)}"
-                      f.write(f"| {idx} | `{folder_name}` | `{filename}` |\n")
-                  
-                  f.write(f"\n---\n")
-                  f.write(f"## 🚀 Next Steps\n\n")
-                  f.write(f"1. Open any folder\n")
-                  f.write(f"2. Copy the URL from `README.md` or `link_info.json`\n")
-                  f.write(f"3. Use the **GitHub Downloader** workflow to download the file\n")
-              
-              print(f"\n✅ Scraping complete!")
-              print(f"📁 Master folder: {session_folder}")
-              print(f"📊 Total folders created: {len(download_links)}")
-          
-          if __name__ == '__main__':
-              main()
-          PYEOF
-          
-          # اجرای اسکریپت
-          python3 scraper.py "$TARGET_URL" "$EXTENSIONS" "$MIN_SIZE_MB" "$SHOW_ALL" "$DEPTH" "$SESSION_FOLDER"
-          
-          # شمارش پوشه‌ها
-          FOLDER_COUNT=$(find "$SESSION_FOLDER" -mindepth 1 -maxdepth 1 -type d | wc -l)
-          echo "folder_count=$FOLDER_COUNT" >> $GITHUB_OUTPUT
-          echo "session_folder=$SESSION_FOLDER" >> $GITHUB_OUTPUT
+          # نام پوشه جلسه (بر اساس آدرس و زمان)
+          CLEAN_NAME=$(echo "$TARGET_URL" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-50)
+          SESSION_NAME="scrape_${TIMESTAMP}_${CLEAN_NAME}"
+          SESSION_PATH="$MAIN_SCRAPED_DIR/$SESSION_NAME"
+          mkdir -p "$SESSION_PATH"
           
           echo "========================================="
-          echo "✅ Scraping completed successfully!"
-          echo "📁 Created $FOLDER_COUNT link folders"
-          echo "📂 Master folder: $SESSION_FOLDER"
+          echo "🕷️ Web Scraper Starting"
+          echo "🌐 URL: $TARGET_URL"
+          echo "📁 Session folder: $SESSION_PATH"
           echo "========================================="
-
-      - name: Upload organized folders as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: scraped-organized-data
-          path: ${{ steps.scrape.outputs.session_folder }}/
-          retention-days: 7
-
-      - name: Update main README with folder structure
-        run: |
-          SESSION_FOLDER="${{ steps.scrape.outputs.session_folder }}"
-          TARGET_URL="${{ github.event.inputs.target_url }}"
-          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-          FOLDER_COUNT="${{ steps.scrape.outputs.folder_count }}"
           
-          if [ ! -f "README.md" ]; then
-            echo "# 🚀 Web Scraper & Downloader" > README.md
-            echo "" >> README.md
-            echo "Tools to scrape websites and download files using GitHub Actions." >> README.md
-            echo "" >> README.md
-            echo "## 📁 Scraped Data Folders" >> README.md
-            echo "" >> README.md
+          DOWNLOAD_LINKS=""
+          
+          # روش API برای HuggingFace
+          if [[ "$TARGET_URL" == *"huggingface.co"* ]]; then
+            MODEL_PATH=$(echo "$TARGET_URL" | sed 's|https://huggingface.co/||' | sed 's|/tree/.*||' | sed 's|/blob/.*||')
+            API_URL="https://huggingface.co/api/models/$MODEL_PATH"
+            
+            curl -sL "$API_URL" | jq -r '.siblings[].rfilename' 2>/dev/null > "$SESSION_PATH/all_files.txt"
+            
+            EXT=$(echo "$EXTENSIONS" | cut -d',' -f1)
+            grep -i "$EXT" "$SESSION_PATH/all_files.txt" > "$SESSION_PATH/filtered_files.txt" 2>/dev/null || true
+            
+            while IFS= read -r file; do
+              if [ -n "$file" ]; then
+                DIRECT_URL="https://huggingface.co/$MODEL_PATH/resolve/main/$file"
+                echo "$DIRECT_URL" >> "$SESSION_PATH/download_links.txt"
+              fi
+            done < "$SESSION_PATH/filtered_files.txt"
           fi
           
-          # اضافه کردن به تاریخچه
-          SESSION_NAME=$(basename "$SESSION_FOLDER")
-          cat >> README.md << EOF
-
-          ### 📂 $SESSION_NAME
-          - **Date:** $TIMESTAMP
-          - **Source:** [$TARGET_URL]($TARGET_URL)
-          - **Download Links Found:** $FOLDER_COUNT
-          - **Artifact:** [Download scraped-organized-data](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-          EOF
-
-      - name: Show folder structure in job summary
-        run: |
-          SESSION_FOLDER="${{ steps.scrape.outputs.session_folder }}"
-          FOLDER_COUNT="${{ steps.scrape.outputs.folder_count }}"
+          # روش HTML scraping
+          if [ ! -s "$SESSION_PATH/download_links.txt" ]; then
+            curl -sL -H "User-Agent: Mozilla/5.0" "$TARGET_URL" > "$SESSION_PATH/page.html"
+            
+            EXT_PATTERN=$(echo "$EXTENSIONS" | sed 's/,/|/g' | sed 's/\.//g')
+            grep -Eo 'https?://[^"]+\.('"$EXT_PATTERN"')' "$SESSION_PATH/page.html" | sort -u > "$SESSION_PATH/download_links.txt"
+          fi
           
-          echo "## 🎯 Scraping Complete - Organized Folders" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total link folders created:** $FOLDER_COUNT" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📁 Folder Structure" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "$SESSION_FOLDER/" >> $GITHUB_STEP_SUMMARY
+          LINK_COUNT=$(wc -l < "$SESSION_PATH/download_links.txt" 2>/dev/null || echo "0")
+          echo "✅ Found $LINK_COUNT download links"
           
-          # نمایش ساختار پوشه‌ها
-          cd "$SESSION_FOLDER"
-          for dir in */; do
-            if [ -d "$dir" ]; then
-              echo "├── $dir" >> $GITHUB_STEP_SUMMARY
-              if [ -f "$dir/README.md" ]; then
-                echo "│   ├── README.md" >> $GITHUB_STEP_SUMMARY
+          # ساخت پوشه برای هر لینک (با نام لینک)
+          COUNTER=1
+          while IFS= read -r url; do
+            if [ -n "$url" ]; then
+              # استخراج نام فایل از لینک
+              FILENAME=$(basename "$url" | cut -d'?' -f1 | cut -d'#' -f1)
+              [ -z "$FILENAME" ] && FILENAME="link_${COUNTER}"
+              
+              # نام پوشه = نام فایل (تمیز شده)
+              FOLDER_NAME=$(echo "$FILENAME" | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-80)
+              if [ -z "$FOLDER_NAME" ]; then
+                FOLDER_NAME="link_${COUNTER}"
               fi
-              if [ -f "$dir/link_info.json" ]; then
-                echo "│   └── link_info.json" >> $GITHUB_STEP_SUMMARY
-              fi
+              
+              FOLDER_PATH="$SESSION_PATH/$FOLDER_NAME"
+              mkdir -p "$FOLDER_PATH"
+              
+              # فایل README داخل پوشه
+              cat > "$FOLDER_PATH/README.md" << EOF
+# 🔗 Download Link: $FILENAME
+
+## 📋 Link Information
+
+| Property | Value |
+|----------|-------|
+| **Source URL** | $TARGET_URL |
+| **Direct Link** | [$url]($url) |
+| **Filename** | \`$FILENAME\` |
+| **Scraped at** | $(date '+%Y-%m-%d %H:%M:%S UTC') |
+
+## 🚀 How to Download
+
+1. Copy this URL: \`$url\`
+2. Go to **Actions** → **GitHub Downloader**
+3. Click **Run workflow**
+4. Paste the URL in the \`urls\` field
+5. Click **Run workflow**
+
+---
+*Scraped by GitHub Actions Web Scraper*
+EOF
+              
+              # فایل JSON
+              cat > "$FOLDER_PATH/link_info.json" << EOF
+{
+  "index": $COUNTER,
+  "filename": "$FILENAME",
+  "direct_url": "$url",
+  "source_url": "$TARGET_URL",
+  "scrape_time": "$(date -Iseconds)"
+}
+EOF
+              
+              echo "  ✓ Created: $FOLDER_NAME"
+              COUNTER=$((COUNTER + 1))
             fi
-          done
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          done < "$SESSION_PATH/download_links.txt"
+          
+          ACTUAL_COUNT=$((COUNTER - 1))
+          echo "link_count=$ACTUAL_COUNT" >> $GITHUB_OUTPUT
+          echo "session_path=$SESSION_PATH" >> $GITHUB_OUTPUT
+          
+          # فایل SUMMARY اصلی جلسه
+          cat > "$SESSION_PATH/00_MASTER_SUMMARY.md" << EOF
+# 🕷️ Web Scraper Results
+
+## 📊 Summary
+
+| Property | Value |
+|----------|-------|
+| **Source URL** | $TARGET_URL |
+| **Scrape Time** | $(date '+%Y-%m-%d %H:%M:%S UTC') |
+| **Links Found** | $ACTUAL_COUNT |
+| **Extensions** | $EXTENSIONS |
+
+## 📁 Download Links
+
+EOF
+          
+          COUNTER=1
+          while IFS= read -r url; do
+            if [ -n "$url" ]; then
+              FILENAME=$(basename "$url" | cut -d'?' -f1)
+              [ -z "$FILENAME" ] && FILENAME="link_${COUNTER}"
+              echo "$COUNTER. [$FILENAME]($url)" >> "$SESSION_PATH/00_MASTER_SUMMARY.md"
+              COUNTER=$((COUNTER + 1))
+            fi
+          done < "$SESSION_PATH/download_links.txt"
+          
+          echo "========================================="
+          echo "✅ Scraping complete!"
+          echo "📁 Main folder: Scraped/"
+          echo "📁 Session: $SESSION_NAME"
+          echo "📊 Links: $ACTUAL_COUNT"
+          echo "========================================="
+
+      - name: Display results in job summary
+        run: |
+          SESSION_PATH="${{ steps.scrape.outputs.session_path }}"
+          LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          
+          echo "## 🎯 Scraping Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📥 Download Artifact" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Source URL** | $TARGET_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Download Links Found** | **$LINK_COUNT** |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The artifact \`scraped-organized-data\` contains the complete folder structure." >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$LINK_COUNT" -gt 0 ] && [ -f "$SESSION_PATH/download_links.txt" ]; then
+            echo "## 📥 Download Links" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| # | Filename | Direct Link |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+            
+            COUNTER=1
+            while IFS= read -r url; do
+              if [ -n "$url" ]; then
+                FILENAME=$(basename "$url" | cut -d'?' -f1)
+                [ -z "$FILENAME" ] && FILENAME="link_${COUNTER}"
+                echo "| $COUNTER | \`$FILENAME\` | [Download Link]($url) |" >> $GITHUB_STEP_SUMMARY
+                COUNTER=$((COUNTER + 1))
+              fi
+            done < "$SESSION_PATH/download_links.txt"
+          fi
+
+      - name: Commit and push scraped data
+        run: |
+          git add Scraped/
+          if ! git diff --cached --quiet; then
+            git commit -m "🕷️ Add scraped data [skip ci]"
+            git push origin HEAD:"${GITHUB_REF_NAME}"
+            echo "✅ Scraped data pushed successfully"
+          else
+            echo "ℹ️ No new scraped data to push"
+          fi
+
+      - name: Upload as artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-data-${{ github.run_id }}
+          path: ${{ steps.scrape.outputs.session_path }}/
+          retention-days: 7
