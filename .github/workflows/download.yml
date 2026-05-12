@@ -1,4 +1,4 @@
-name: GitHub Downloader
+name: دانلود از سایتهای فیلتر شده 
 
 on:
   workflow_dispatch:
