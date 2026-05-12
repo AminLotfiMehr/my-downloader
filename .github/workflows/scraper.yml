@@ -1,4 +1,4 @@
-name: Web Scraper full
+name: Web Scraper
 
 on:
   workflow_dispatch:
