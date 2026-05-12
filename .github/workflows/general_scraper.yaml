@@ -9,9 +9,37 @@ on:
         type: string
         default: 'https://huggingface.co/TrevorJS/gemma-4-26B-A4B-it-uncensored-GGUF'
       file_extensions:
-        description: 'File extensions (comma separated)'
+        description: 'File extensions (comma separated, e.g., .gguf,.bin,.zip)'
         required: false
         default: '.gguf'
+      min_file_size_mb:
+        description: 'Minimum file size in MB (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
+      max_file_size_mb:
+        description: 'Maximum file size in MB (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
+      max_pages:
+        description: 'Maximum number of pages to scrape (1-50, 0 = unlimited)'
+        required: false
+        default: '0'
+        type: string
+      show_all_links:
+        description: 'Show all links (ignore extension filter)'
+        required: false
+        type: boolean
+        default: false
+      recursive_depth:
+        description: 'Recursive depth (0=current page only, 1=follow internal links)'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
 
 jobs:
   scrape:
@@ -32,11 +60,21 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Scrape website
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Scrape website with size detection
         id: scrape
         run: |
           TARGET_URL="${{ github.event.inputs.target_url }}"
           EXTENSIONS="${{ github.event.inputs.file_extensions }}"
+          MIN_SIZE_MB="${{ github.event.inputs.min_file_size_mb }}"
+          MAX_SIZE_MB="${{ github.event.inputs.max_file_size_mb }}"
+          MAX_PAGES="${{ github.event.inputs.max_pages }}"
+          SHOW_ALL="${{ github.event.inputs.show_all_links }}"
+          DEPTH="${{ github.event.inputs.recursive_depth }}"
           
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           
@@ -48,39 +86,149 @@ jobs:
           SESSION_PATH="$MAIN_DIR/$SESSION_NAME"
           mkdir -p "$SESSION_PATH"
           
-          echo "Scraping: $TARGET_URL"
+          echo "========================================="
+          echo "Web Scraper Starting"
+          echo "URL: $TARGET_URL"
+          echo "Extensions: $EXTENSIONS"
+          echo "Min Size: $MIN_SIZE_MB MB"
+          echo "Max Size: $MAX_SIZE_MB MB"
+          echo "Max Pages: $MAX_PAGES"
+          echo "Show All: $SHOW_ALL"
+          echo "Recursive Depth: $DEPTH"
           echo "Session: $SESSION_PATH"
+          echo "========================================="
+          
+          # ذخیره تنظیمات
+          printf '{\n' > "$SESSION_PATH/scrape_config.json"
+          printf '  "target_url": "%s",\n' "$TARGET_URL" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "file_extensions": "%s",\n' "$EXTENSIONS" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "min_file_size_mb": %s,\n' "$MIN_SIZE_MB" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "max_file_size_mb": %s,\n' "$MAX_SIZE_MB" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "max_pages": %s,\n' "$MAX_PAGES" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "show_all_links": %s,\n' "$SHOW_ALL" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "recursive_depth": %s,\n' "$DEPTH" >> "$SESSION_PATH/scrape_config.json"
+          printf '  "scrape_time": "%s"\n' "$(date -Iseconds)" >> "$SESSION_PATH/scrape_config.json"
+          printf '}\n' >> "$SESSION_PATH/scrape_config.json"
+          
+          # تابع تبدیل حجم به فرمت خوانا
+          format_size() {
+            local bytes=$1
+            if [ -z "$bytes" ] || [ "$bytes" = "0" ]; then
+              echo "Unknown"
+            elif [ $bytes -gt 1073741824 ]; then
+              echo "$(echo "scale=2; $bytes / 1073741824" | bc) GB"
+            elif [ $bytes -gt 1048576 ]; then
+              echo "$(echo "scale=2; $bytes / 1048576" | bc) MB"
+            else
+              echo "$(echo "scale=2; $bytes / 1024" | bc) KB"
+            fi
+          }
           
           DOWNLOAD_LINKS=""
+          PAGE_COUNT=0
           
+          # اسکرپ HuggingFace با API
           if [[ "$TARGET_URL" == *"huggingface.co"* ]]; then
+            echo "Detected HuggingFace - using API method"
             MODEL_PATH=$(echo "$TARGET_URL" | sed 's|https://huggingface.co/||' | sed 's|/tree/.*||' | sed 's|/blob/.*||')
             API_URL="https://huggingface.co/api/models/$MODEL_PATH"
             
             curl -sL "$API_URL" | jq -r '.siblings[].rfilename' > "$SESSION_PATH/all_files.txt"
             
-            EXT=$(echo "$EXTENSIONS" | cut -d',' -f1)
-            grep -i "$EXT" "$SESSION_PATH/all_files.txt" > "$SESSION_PATH/filtered_files.txt" 2>/dev/null || true
+            if [ "$SHOW_ALL" = "true" ]; then
+              cp "$SESSION_PATH/all_files.txt" "$SESSION_PATH/filtered_files.txt"
+            else
+              EXT=$(echo "$EXTENSIONS" | cut -d',' -f1)
+              grep -i "$EXT" "$SESSION_PATH/all_files.txt" > "$SESSION_PATH/filtered_files.txt" 2>/dev/null || true
+            fi
             
+            # دریافت حجم هر فایل
+            echo "Getting file sizes..."
             while IFS= read -r file; do
               if [ -n "$file" ]; then
-                echo "https://huggingface.co/$MODEL_PATH/resolve/main/$file" >> "$SESSION_PATH/download_links.txt"
+                PAGE_COUNT=$((PAGE_COUNT + 1))
+                FILE_URL="https://huggingface.co/$MODEL_PATH/resolve/main/$file"
+                
+                # گرفتن حجم فایل از هدر
+                SIZE_BYTES=$(curl -sI "$FILE_URL" | grep -i "content-length" | awk '{print $2}' | tr -d '\r')
+                SIZE_READABLE=$(format_size "$SIZE_BYTES")
+                SIZE_MB_INT=0
+                if [ -n "$SIZE_BYTES" ]; then
+                  SIZE_MB_INT=$((SIZE_BYTES / 1024 / 1024))
+                fi
+                
+                # اعمال فیلتر حجم
+                SIZE_OK=true
+                if [ "$MIN_SIZE_MB" != "0" ] && [ -n "$SIZE_BYTES" ] && [ "$SIZE_MB_INT" -lt "$MIN_SIZE_MB" ]; then
+                  SIZE_OK=false
+                fi
+                if [ "$MAX_SIZE_MB" != "0" ] && [ -n "$SIZE_BYTES" ] && [ "$SIZE_MB_INT" -gt "$MAX_SIZE_MB" ]; then
+                  SIZE_OK=false
+                fi
+                
+                # محدودیت تعداد صفحات
+                MAX_PAGES_INT=0
+                if [ -n "$MAX_PAGES" ]; then
+                  MAX_PAGES_INT=$((MAX_PAGES))
+                fi
+                
+                if [ "$SIZE_OK" = true ]; then
+                  if [ "$MAX_PAGES_INT" -eq 0 ] || [ "$PAGE_COUNT" -le "$MAX_PAGES_INT" ]; then
+                    echo "$FILE_URL|$SIZE_READABLE|$SIZE_MB_INT" >> "$SESSION_PATH/download_links_with_size.txt"
+                    echo "$FILE_URL" >> "$SESSION_PATH/download_links.txt"
+                  fi
+                fi
               fi
             done < "$SESSION_PATH/filtered_files.txt"
           fi
           
-          if [ ! -s "$SESSION_PATH/download_links.txt" ]; then
+          # روش HTML scraping برای سایت‌های دیگر
+          if [ ! -s "$SESSION_PATH/download_links.txt" ] && [ "$SHOW_ALL" != "true" ]; then
+            echo "Using HTML scraping method"
             curl -sL -H "User-Agent: Mozilla/5.0" "$TARGET_URL" > "$SESSION_PATH/page.html"
+            
             EXT_PATTERN=$(echo "$EXTENSIONS" | sed 's/,/|/g' | sed 's/\.//g')
-            grep -Eo 'https?://[^"]+\.('"$EXT_PATTERN"')' "$SESSION_PATH/page.html" | sort -u > "$SESSION_PATH/download_links.txt" 2>/dev/null || true
+            grep -Eo 'https?://[^"]+\.('"$EXT_PATTERN"')' "$SESSION_PATH/page.html" | sort -u > "$SESSION_PATH/extracted_links.txt"
+            
+            while IFS= read -r url; do
+              if [ -n "$url" ]; then
+                PAGE_COUNT=$((PAGE_COUNT + 1))
+                
+                # گرفتن حجم فایل
+                SIZE_BYTES=$(curl -sI "$url" | grep -i "content-length" | awk '{print $2}' | tr -d '\r')
+                SIZE_READABLE=$(format_size "$SIZE_BYTES")
+                SIZE_MB_INT=0
+                if [ -n "$SIZE_BYTES" ]; then
+                  SIZE_MB_INT=$((SIZE_BYTES / 1024 / 1024))
+                fi
+                
+                # اعمال فیلتر حجم
+                SIZE_OK=true
+                if [ "$MIN_SIZE_MB" != "0" ] && [ -n "$SIZE_BYTES" ] && [ "$SIZE_MB_INT" -lt "$MIN_SIZE_MB" ]; then
+                  SIZE_OK=false
+                fi
+                if [ "$MAX_SIZE_MB" != "0" ] && [ -n "$SIZE_BYTES" ] && [ "$SIZE_MB_INT" -gt "$MAX_SIZE_MB" ]; then
+                  SIZE_OK=false
+                fi
+                
+                if [ "$SIZE_OK" = true ]; then
+                  echo "$url|$SIZE_READABLE|$SIZE_MB_INT" >> "$SESSION_PATH/download_links_with_size.txt"
+                  echo "$url" >> "$SESSION_PATH/download_links.txt"
+                fi
+              fi
+            done < "$SESSION_PATH/extracted_links.txt"
           fi
           
           LINK_COUNT=$(wc -l < "$SESSION_PATH/download_links.txt" 2>/dev/null | tr -d ' ')
+          [ -z "$LINK_COUNT" ] && LINK_COUNT=0
           echo "link_count=$LINK_COUNT" >> $GITHUB_OUTPUT
           echo "session_path=$SESSION_PATH" >> $GITHUB_OUTPUT
           
+          echo "Found $LINK_COUNT download links (after size filters)"
+          
+          # ساخت پوشه برای هر لینک
           COUNTER=1
-          while IFS= read -r url; do
+          while IFS='|' read -r url size_display size_mb; do
             if [ -n "$url" ]; then
               FILENAME=$(basename "$url" | cut -d'?' -f1 | cut -d'#' -f1)
               if [ -z "$FILENAME" ]; then
@@ -102,6 +250,9 @@ jobs:
               printf '| Source URL | %s |\n' "$TARGET_URL" >> "$FOLDER_PATH/README.md"
               printf '| Direct Link | [%s](%s) |\n' "$url" "$url" >> "$FOLDER_PATH/README.md"
               printf '| Filename | `%s` |\n' "$FILENAME" >> "$FOLDER_PATH/README.md"
+              printf '| **File Size** | **%s** |\n' "$size_display" >> "$FOLDER_PATH/README.md"
+              printf '| Min Size Filter | %s MB |\n' "$MIN_SIZE_MB" >> "$FOLDER_PATH/README.md"
+              printf '| Max Size Filter | %s MB |\n' "$MAX_SIZE_MB" >> "$FOLDER_PATH/README.md"
               printf '| Scraped at | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$FOLDER_PATH/README.md"
               printf '\n## How to Download\n\n' >> "$FOLDER_PATH/README.md"
               printf '1. Copy this URL: `%s`\n' "$url" >> "$FOLDER_PATH/README.md"
@@ -113,61 +264,126 @@ jobs:
               printf '  "index": %d,\n' "$COUNTER" >> "$FOLDER_PATH/link_info.json"
               printf '  "filename": "%s",\n' "$FILENAME" >> "$FOLDER_PATH/link_info.json"
               printf '  "direct_url": "%s",\n' "$url" >> "$FOLDER_PATH/link_info.json"
+              printf '  "file_size": "%s",\n' "$size_display" >> "$FOLDER_PATH/link_info.json"
               printf '  "source_url": "%s",\n' "$TARGET_URL" >> "$FOLDER_PATH/link_info.json"
               printf '  "scrape_time": "%s"\n' "$(date -Iseconds)" >> "$FOLDER_PATH/link_info.json"
               printf '}\n' >> "$FOLDER_PATH/link_info.json"
               
-              echo "Created: $FOLDER_NAME"
+              echo "Created: $FOLDER_NAME ($size_display)"
               COUNTER=$((COUNTER + 1))
             fi
-          done < "$SESSION_PATH/download_links.txt"
+          done < "$SESSION_PATH/download_links_with_size.txt"
           
           ACTUAL_COUNT=$((COUNTER - 1))
           
+          # MASTER SUMMARY با جدول حجم
           printf '# Web Scraper Results\n\n' > "$SESSION_PATH/MASTER_SUMMARY.md"
-          printf '## Summary\n\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
-          printf '| Property | Value |\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
-          printf '|----------|-------|\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '## Configuration\n\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Parameter | Value |\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '|-----------|-------|\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
           printf '| Source URL | %s |\n' "$TARGET_URL" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| File Extensions | `%s` |\n' "$EXTENSIONS" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Min File Size | %s MB |\n' "$MIN_SIZE_MB" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Max File Size | %s MB |\n' "$MAX_SIZE_MB" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Max Pages | %s |\n' "$MAX_PAGES" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Show All Links | %s |\n' "$SHOW_ALL" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| Recursive Depth | %s |\n' "$DEPTH" >> "$SESSION_PATH/MASTER_SUMMARY.md"
           printf '| Scrape Time | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S UTC')" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-          printf '| Links Found | %s |\n' "$ACTUAL_COUNT" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-          printf '| Extensions | %s |\n' "$EXTENSIONS" >> "$SESSION_PATH/MASTER_SUMMARY.md"
-          printf '\n## Download Links\n\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| **Links Found** | **%s** |\n' "$ACTUAL_COUNT" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '\n## Download Links (with sizes)\n\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '| # | Filename | Size | Direct Link |\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
+          printf '|---|----------|------|-------------|\n' >> "$SESSION_PATH/MASTER_SUMMARY.md"
           
           COUNTER=1
-          while IFS= read -r url; do
+          while IFS='|' read -r url size_display size_mb; do
             if [ -n "$url" ]; then
               FILENAME=$(basename "$url" | cut -d'?' -f1)
-              printf '%d. [%s](%s)\n' "$COUNTER" "$FILENAME" "$url" >> "$SESSION_PATH/MASTER_SUMMARY.md"
+              printf '| %d | `%s` | **%s** | [Download](%s) |\n' "$COUNTER" "$FILENAME" "$size_display" "$url" >> "$SESSION_PATH/MASTER_SUMMARY.md"
               COUNTER=$((COUNTER + 1))
             fi
-          done < "$SESSION_PATH/download_links.txt"
+          done < "$SESSION_PATH/download_links_with_size.txt"
           
+          echo "========================================="
           echo "Scraping complete. Found $ACTUAL_COUNT links."
+          echo "File sizes are displayed in results."
+          echo "Results saved in: $SESSION_PATH"
+          echo "========================================="
 
-      - name: Display results
+      - name: Display results in job summary
         run: |
           LINK_COUNT="${{ steps.scrape.outputs.link_count }}"
           TARGET_URL="${{ github.event.inputs.target_url }}"
+          MIN_SIZE="${{ github.event.inputs.min_file_size_mb }}"
+          MAX_SIZE="${{ github.event.inputs.max_file_size_mb }}"
+          MAX_PAGES="${{ github.event.inputs.max_pages }}"
+          SHOW_ALL="${{ github.event.inputs.show_all_links }}"
+          DEPTH="${{ github.event.inputs.recursive_depth }}"
+          EXT="${{ github.event.inputs.file_extensions }}"
+          SESSION_PATH="${{ steps.scrape.outputs.session_path }}"
           
-          echo "## Scraping Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Web Scraper Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Source URL | $TARGET_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "| Links Found | $LINK_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| File Extensions | \`$EXT\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Min File Size | $MIN_SIZE MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Max File Size | $MAX_SIZE MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Max Pages | $MAX_PAGES |" >> $GITHUB_STEP_SUMMARY
+          echo "| Show All Links | $SHOW_ALL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Recursive Depth | $DEPTH |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Links Found** | **$LINK_COUNT** |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "$SESSION_PATH/download_links_with_size.txt" ] && [ "$LINK_COUNT" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Download Links (click to copy)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| # | Filename | Size | Link |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|----------|------|------|" >> $GITHUB_STEP_SUMMARY
+            
+            COUNTER=1
+            while IFS='|' read -r url size_display size_mb; do
+              if [ -n "$url" ]; then
+                FILENAME=$(basename "$url" | cut -d'?' -f1)
+                SHORT_NAME=$(echo "$FILENAME" | cut -c1-40)
+                [ ${#FILENAME} -gt 40 ] && SHORT_NAME="${SHORT_NAME}..."
+                echo "| $COUNTER | \`$SHORT_NAME\` | **$size_display** | [Link]($url) |" >> $GITHUB_STEP_SUMMARY
+                COUNTER=$((COUNTER + 1))
+              fi
+            done < "$SESSION_PATH/download_links_with_size.txt"
+          fi
 
       - name: Commit and push
         run: |
-          git pull origin "${GITHUB_REF_NAME}" --rebase || true
-          git add Scraped/
-          if ! git diff --cached --quiet; then
-            git commit -m "Add scraped data [skip ci]"
-            git push origin HEAD:"${GITHUB_REF_NAME}"
-            echo "Push successful"
-          else
+          if [ -z "$(git status --porcelain)" ]; then
             echo "No changes to commit"
+            exit 0
           fi
+          
+          git add Scraped/
+          
+          if git diff --cached --quiet; then
+            echo "No changes staged for commit"
+            exit 0
+          fi
+          
+          git commit -m "Add scraped data with file sizes [skip ci]"
+          
+          for i in 1 2 3; do
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              echo "Push successful"
+              exit 0
+            else
+              echo "Push failed, attempt $i/3"
+              git pull origin "${GITHUB_REF_NAME}" --rebase
+              sleep 2
+            fi
+          done
+          
+          echo "Failed to push after 3 attempts"
+          exit 1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
