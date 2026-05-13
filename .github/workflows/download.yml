@@ -54,14 +54,13 @@ jobs:
       - name: Download files
         id: download
         run: |
-          set -x  # نمایش همه دستورات برای دیباگ
-          set -e  # exit on error
+          set -x
+          set -e
           
           MODE="${{ github.event.inputs.mode }}"
           URLS="${{ github.event.inputs.urls }}"
           ZIP_PASSWORD="${{ github.event.inputs.password }}"
 
-          # بررسی خالی نبودن URLS
           if [ -z "$URLS" ]; then
             echo "ERROR: No URLs provided!"
             exit 1
@@ -85,7 +84,6 @@ jobs:
           echo "Split threshold: $SPLIT_THRESHOLD_MB MB"
           echo "========================================="
 
-          # Arrays for random folder naming to avoid conflicts
           RANDOM_WORDS=("alpha" "beta" "gamma" "delta" "epsilon" "zeta" "theta" "kappa" "lambda" "sigma" "omega" "nova" "star" "moon" "sun" "sky" "cloud" "river" "ocean" "mountain")
 
           get_random_word() {
@@ -120,7 +118,6 @@ jobs:
             local MAX_RETRIES=3
             local RETRY_DELAY=5
             local SUCCESS=false
-            local ERROR_LOG=""
 
             rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2" 2>/dev/null
 
@@ -195,7 +192,6 @@ jobs:
             COUNTER=$((COUNTER + 1))
           done
 
-          # Process files based on mode
           if [ "$MODE" = "zip" ]; then
             if [ -n "$(ls -A tmp_downloads 2>/dev/null)" ]; then
               ARCHIVE_NAME="archive_$(date +%Y%m%d_%H%M%S)"
@@ -221,7 +217,6 @@ jobs:
                     "${VALID_FILES[@]}" 2>/dev/null
                 fi
 
-                # Create README for archive
                 echo "# $ARCHIVE_NAME Archive" > "$FOLDER_PATH/README.md"
                 echo "" >> "$FOLDER_PATH/README.md"
                 echo "## Download Information" >> "$FOLDER_PATH/README.md"
@@ -261,7 +256,6 @@ jobs:
             rm -rf tmp_downloads
 
           else
-            # Normal mode - each file in its own folder
             for FILE in tmp_downloads/*; do
               [ -f "$FILE" ] || continue
 
@@ -298,7 +292,6 @@ jobs:
                     "$FILE" 2>/dev/null
                 fi
 
-                # Create README for split archive
                 echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
                 echo "" >> "$FOLDER_PATH/README.md"
                 echo "## Download Information" >> "$FOLDER_PATH/README.md"
@@ -384,7 +377,6 @@ jobs:
             rm -rf tmp_downloads
           fi
 
-          # Create main README
           echo "# Downloads" > "$MAIN_DIR/README.md"
           echo "" >> "$MAIN_DIR/README.md"
           echo "This folder contains files downloaded by GitHub Downloader." >> "$MAIN_DIR/README.md"
@@ -462,28 +454,21 @@ jobs:
           echo "Creating GitHub Release for downloaded files"
           echo "=========================================="
           
-          # ایجاد نام برای Release
           TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
           RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
           
-          # ایجاد Release جدید
           gh release create "$TAG_NAME" \
             --title "$RELEASE_NAME" \
-            --notes "📥 **Files downloaded from:** 
-            
-${{ github.event.inputs.urls }}
-
-**Mode:** ${{ github.event.inputs.mode }}
-**Download Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')
-**Total Size:** $(du -sh downloads/ | cut -f1)
-
-> ⚠️ **Note:** Large files are split into 45MB parts (.z01, .z02, etc.). Download all parts and open the .zip file to extract."
-            
+            --notes "Files downloaded from: ${{ github.event.inputs.urls }}
+          
+Mode: ${{ github.event.inputs.mode }}
+          
+Note: Large files are split into 45MB parts. Download all parts and open the .zip file to extract."
+          
           echo "✅ Release created: $TAG_NAME"
           echo ""
           echo "Uploading files to Release..."
           
-          # آپلود همه فایل‌های دانلود شده
           FILE_COUNT=0
           for file in downloads/*/*.zip downloads/*/*.z* downloads/*/README.md; do
             if [ -f "$file" ]; then
@@ -500,7 +485,6 @@ ${{ github.event.inputs.urls }}
           echo "🔗 Download from: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
           echo "=========================================="
           
-          # بروزرسانی README اصلی با لینک Release
           echo "" >> README.md
           echo "---" >> README.md
           echo "" >> README.md
