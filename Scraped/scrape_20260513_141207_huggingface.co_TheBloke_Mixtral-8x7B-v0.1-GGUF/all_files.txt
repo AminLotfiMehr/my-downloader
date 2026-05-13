@@ -1,0 +1,11 @@
+.gitattributes
+README.md
+config.json
+mixtral-8x7b-v0.1.Q2_K.gguf
+mixtral-8x7b-v0.1.Q3_K_M.gguf
+mixtral-8x7b-v0.1.Q4_0.gguf
+mixtral-8x7b-v0.1.Q4_K_M.gguf
+mixtral-8x7b-v0.1.Q5_0.gguf
+mixtral-8x7b-v0.1.Q5_K_M.gguf
+mixtral-8x7b-v0.1.Q6_K.gguf
+mixtral-8x7b-v0.1.Q8_0.gguf
