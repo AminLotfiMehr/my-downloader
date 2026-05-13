@@ -1,6 +1,30 @@
----
-name: ⬇️  01- Down load URL
-- name: Check URL provided
+name: ⬇️ 01- Download URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'لینک های دانلود (برای چند لینک با فاصله جدا کنید)'
+        required: true
+        type: string
+      mode:
+        description: 'حالت خروجی'
+        required: false
+        default: 'zip'
+        type: choice
+        options:
+          - zip
+          - single
+      password:
+        description: 'رمز فایل ZIP (اختیاری)'
+        required: false
+        type: string
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check URL provided
         run: |
           if [ -z "${{ github.event.inputs.urls }}" ]; then
             echo ""
@@ -38,10 +62,10 @@ name: ⬇️  01- Down load URL
           sudo apt-get update
           sudo apt-get install -y aria2 zip curl bc
 
-      - name: AminLotfiMehr Downloader - 
+      - name: AminLotfiMehr Downloader
         run: |
           echo "🏷️  AminLotfiMehr - Your Download Solution"
-          echo "🌐 
+          echo "🌐  https://github.com/AminLotfiMehr"
           echo ""
 
       - name: Download files
