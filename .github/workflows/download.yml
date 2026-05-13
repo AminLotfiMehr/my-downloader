@@ -60,7 +60,6 @@ jobs:
           REPO_NAME="${{ github.event.repository.name }}"
           BRANCH="${GITHUB_REF_NAME}"
 
-          # پوشه موقت برای ساختار فولدری
           RELEASE_DIR="release_$(date +%Y%m%d_%H%M%S)"
           mkdir -p "$RELEASE_DIR"
           mkdir -p tmp_downloads
@@ -167,7 +166,6 @@ jobs:
             fi
           }
 
-          # دانلود فایل‌ها
           COUNTER=1
           for URL in $URLS; do
             FILENAME=$(basename "$URL" | sed 's/%20/ /g' | sed 's/%2F/-/g' | sed 's/[?#].*//')
@@ -178,7 +176,6 @@ jobs:
             COUNTER=$((COUNTER + 1))
           done
 
-          # پردازش فایل‌ها و ساخت ساختار فولدری در RELEASE_DIR
           for FILE in tmp_downloads/*; do
             [ -f "$FILE" ] || continue
 
@@ -198,7 +195,6 @@ jobs:
             BASENAME=$(basename "$FILE")
             BASENAME_NO_EXT="${BASENAME%.*}"
 
-            # ساخت پوشه برای هر فایل
             FOLDER_NAME=$(get_unique_folder "$RELEASE_DIR" "$BASENAME_NO_EXT")
             FOLDER_PATH="$RELEASE_DIR/$FOLDER_NAME"
             mkdir -p "$FOLDER_PATH"
@@ -216,7 +212,6 @@ jobs:
                   "$FILE" 2>/dev/null
               fi
 
-              # ساخت README با لینک‌های مستقیم
               echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
               echo "" >> "$FOLDER_PATH/README.md"
               echo "## Download Information" >> "$FOLDER_PATH/README.md"
@@ -230,7 +225,7 @@ jobs:
                 echo "| Password Protected | YES |" >> "$FOLDER_PATH/README.md"
               fi
               echo "" >> "$FOLDER_PATH/README.md"
-              echo "## Direct Download Links (کلیک راست - Save Link As...)" >> "$FOLDER_PATH/README.md"
+              echo "## Direct Download Links (Right-click - Save Link As...)" >> "$FOLDER_PATH/README.md"
               echo "" >> "$FOLDER_PATH/README.md"
               echo "| # | File | Size | Direct Link |" >> "$FOLDER_PATH/README.md"
               echo "|---|------|------|-------------|" >> "$FOLDER_PATH/README.md"
@@ -240,8 +235,7 @@ jobs:
                 if [ -f "$part_file" ]; then
                   PART_NAME=$(basename "$part_file")
                   PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "unknown")
-                  # لینک مستقیم به فایل در Release (بعداً آپلود می‌شود)
-                  echo "| $LINK_NUM | \`$PART_NAME\` | $PART_SIZE | \`[Download Link will appear after release]\` |" >> "$FOLDER_PATH/README.md"
+                  echo "| $LINK_NUM | \`$PART_NAME\` | $PART_SIZE | \`Download link will appear after release\` |" >> "$FOLDER_PATH/README.md"
                   LINK_NUM=$((LINK_NUM + 1))
                 fi
               done
@@ -288,7 +282,7 @@ jobs:
               echo "" >> "$FOLDER_PATH/README.md"
               echo "| File | Size | Direct Link |" >> "$FOLDER_PATH/README.md"
               echo "|------|------|-------------|" >> "$FOLDER_PATH/README.md"
-              echo "| \`${FOLDER_NAME}.zip\` | $PART_SIZE | \`[Download Link will appear after release]\` |" >> "$FOLDER_PATH/README.md"
+              echo "| \`${FOLDER_NAME}.zip\` | $PART_SIZE | \`Download link will appear after release\` |" >> "$FOLDER_PATH/README.md"
               echo "" >> "$FOLDER_PATH/README.md"
               echo "## How to Extract" >> "$FOLDER_PATH/README.md"
               echo "" >> "$FOLDER_PATH/README.md"
@@ -303,7 +297,6 @@ jobs:
 
           rm -rf tmp_downloads
 
-          # ساخت README اصلی برای Release
           echo "# GitHub Downloader - Release" > "$RELEASE_DIR/README.md"
           echo "" >> "$RELEASE_DIR/README.md"
           echo "## Downloaded Files" >> "$RELEASE_DIR/README.md"
@@ -329,7 +322,6 @@ jobs:
           echo "Release folder: $RELEASE_DIR"
           echo "========================================="
           
-          # ذخیره نام پوشه برای مرحله بعد
           echo "$RELEASE_DIR" > /tmp/release_dir.txt
 
       - name: Create GitHub Release and Upload Files
@@ -343,47 +335,44 @@ jobs:
           TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
           RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
           
-          # محاسبه آمار
           TOTAL_FILES=$(find "$RELEASE_DIR" -type f -not -name "README.md" 2>/dev/null | wc -l)
           TOTAL_SIZE=$(du -sh "$RELEASE_DIR" 2>/dev/null | cut -f1)
           
-          # ایجاد Release
-          gh release create "$TAG_NAME" \
-            --title "$RELEASE_NAME" \
-            --notes "📥 **Files downloaded from:** 
+          NOTES="📥 Files downloaded from: 
           
 ${{ github.event.inputs.urls }}
 
-**Mode:** ${{ github.event.inputs.mode }}
-**Total Parts:** $TOTAL_FILES
-**Total Size:** $TOTAL_SIZE
-**Download Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')
+Mode: ${{ github.event.inputs.mode }}
+Total Parts: $TOTAL_FILES
+Total Size: $TOTAL_SIZE
+Download Time: $(date +'%Y-%m-%d %H:%M:%S UTC')
 
 ---
 
-## 📁 **How to Download:**
+📁 How to Download:
 
-1. **Click on each folder below** to see its contents
-2. **Right-click on each file link** and select \"Save Link As...\" 
-3. **Or drag the link directly** to your download manager
+1. Click on each folder below to see its contents
+2. Right-click on each file link and select Save Link As...
+3. Or drag the link directly to your download manager
 
 ---
 
-## 📂 **Download Links:**"
+📂 Download Links:"
+          
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "$NOTES"
           
           echo ""
           echo "✅ Release created: $TAG_NAME"
           echo ""
           echo "Uploading files with folder structure..."
           
-          # آپلود همه فایل‌ها با حفظ ساختار
           FILE_COUNT=0
           
-          # ابتدا README اصلی را آپلود کن
           gh release upload "$TAG_NAME" "$RELEASE_DIR/README.md" --clobber
           FILE_COUNT=$((FILE_COUNT + 1))
           
-          # آپلود فایل‌های هر پوشه
           for folder in "$RELEASE_DIR"/*/; do
             if [ -d "$folder" ]; then
               FOLDER_NAME=$(basename "$folder")
@@ -405,13 +394,13 @@ ${{ github.event.inputs.urls }}
           echo "✅ Successfully uploaded $FILE_COUNT files!"
           echo "📦 Release: $TAG_NAME"
           echo ""
-          echo "🔗 **RELEASE URL:**"
+          echo "🔗 RELEASE URL:"
           echo "   https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
           echo ""
-          echo "📁 **To download each file:"
+          echo "📁 To download each file:"
           echo "   1. Go to the Release page"
           echo "   2. Click on each folder"
-          echo "   3. Right-click on file → Save Link As..."
+          echo "   3. Right-click on file -> Save Link As..."
           echo "=========================================="
           
         env:
