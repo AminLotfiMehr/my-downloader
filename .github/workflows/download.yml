@@ -338,9 +338,9 @@ jobs:
           TOTAL_FILES=$(find "$RELEASE_DIR" -type f -not -name "README.md" 2>/dev/null | wc -l)
           TOTAL_SIZE=$(du -sh "$RELEASE_DIR" 2>/dev/null | cut -f1)
           
-          NOTES="📥 Files downloaded from: 
-          
-${{ github.event.inputs.urls }}
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "📥 Files downloaded from: ${{ github.event.inputs.urls }}
 
 Mode: ${{ github.event.inputs.mode }}
 Total Parts: $TOTAL_FILES
@@ -358,10 +358,6 @@ Download Time: $(date +'%Y-%m-%d %H:%M:%S UTC')
 ---
 
 📂 Download Links:"
-          
-          gh release create "$TAG_NAME" \
-            --title "$RELEASE_NAME" \
-            --notes "$NOTES"
           
           echo ""
           echo "✅ Release created: $TAG_NAME"
