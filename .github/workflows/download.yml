@@ -521,41 +521,49 @@ jobs:
           
           echo "$RELEASE_DIR" > /tmp/release_dir.txt
 
-      - name: Create GitHub Release and Upload Files
+            - name: Push to Releases Branch
         run: |
+          # ۱. دریافت مسیر پوشه دانلود شده از فایل موقت
           RELEASE_DIR=$(cat /tmp/release_dir.txt)
           
           echo "=========================================="
-          echo "Creating GitHub Release with folder structure"
+          echo "Starting Automated Release Process"
           echo "=========================================="
-          
-          TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
-          RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
-          
-          gh release create "$TAG_NAME" --title "$RELEASE_NAME" --notes "Downloaded from: ${{ github.event.inputs.urls }}"
-          
-          echo "Release created: $TAG_NAME"
-          echo "Uploading files..."
-          
-          FILE_COUNT=0
-          
+
+          # ۲. تنظیمات گیت برای اجازه دادن به تغییرات
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ۳. ایجاد پوشه releases در ریشه پروژه (اگر وجود ندارد)
+          mkdir -p releases
+
+          # ۴. انتقال فایل‌ها به داخل پوشه releases/ با حفظ ساختار نام پوشه‌ها
+          echo "Moving files to releases/ folder..."
           for folder in "$RELEASE_DIR"/*/; do
             if [ -d "$folder" ]; then
-              echo "Uploading folder: $(basename "$folder")"
-              for file in "$folder"/*; do
-                if [ -f "$file" ]; then
-                  gh release upload "$TAG_NAME" "$file" --clobber
-                  FILE_COUNT=$((FILE_COUNT + 1))
-                fi
-              done
+              FOLDER_NAME=$(basename "$folder")
+              # ایجاد زیرپوشه در داخل releases برای هر دانلود جدید
+              mkdir -p "releases/$FOLDER_NAME"
+              # کپی کردن فایل‌ها به پوشه جدید
+              cp "$folder"* "releases/$FOLDER_NAME/"
+              echo "✅ Copied $FOLDER_NAME to releases/"
             fi
           done
+
+          # ۵. اضافه کردن تغییرات به گیت و Push کردن به شاخه releases
+          echo "Pushing changes to GitHub..."
+          git add releases/
+          git commit -m "Auto-release: $(date +'%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
           
+          # ایجاد یا آپدیت کردن شاخه releases در گیت‌هاب
+          git push origin HEAD:releases --force
+
           echo ""
           echo "=========================================="
-          echo "Successfully uploaded $FILE_COUNT files!"
-          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo "✅ SUCCESS!"
+          echo "All files are now in the 'releases' branch."
+          echo "🔗 Direct Download Link Format:"
+          echo "https://raw.githubusercontent.com/AminLotfiMehr/my-downloader/releases/FOLDER_NAME/FILE_NAME"
           echo "=========================================="
-          
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
