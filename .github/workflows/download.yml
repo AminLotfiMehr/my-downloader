@@ -56,7 +56,7 @@ jobs:
         run: |
           set -x  # نمایش همه دستورات برای دیباگ
           set -e  # exit on error
-
+          
           MODE="${{ github.event.inputs.mode }}"
           URLS="${{ github.event.inputs.urls }}"
           ZIP_PASSWORD="${{ github.event.inputs.password }}"
@@ -456,47 +456,57 @@ jobs:
 
           echo "README.md updated with download links"
 
-      - name: Incremental Commit and Push
+      - name: Create GitHub Release and Upload Files
         run: |
-          BRANCH="${GITHUB_REF_NAME}"
-
           echo "=========================================="
-          echo "Incremental Push Mode - Pushing files in batches"
+          echo "Creating GitHub Release for downloaded files"
           echo "=========================================="
+          
+          # ایجاد نام برای Release
+          TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
+          RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
+          
+          # ایجاد Release جدید
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "📥 **Files downloaded from:** 
+            
+${{ github.event.inputs.urls }}
 
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No changes to commit"
-            exit 0
-          fi
+**Mode:** ${{ github.event.inputs.mode }}
+**Download Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')
+**Total Size:** $(du -sh downloads/ | cut -f1)
 
-          git add downloads/ README.md
-
-          if git diff --cached --quiet; then
-            echo "No changes staged for commit"
-            exit 0
-          fi
-
-          git commit -m "Add downloaded files [skip ci]"
-
-          PUSH_RETRY=0
-          PUSH_SUCCESS=false
-          while [ $PUSH_RETRY -lt 5 ] && [ "$PUSH_SUCCESS" = false ]; do
-            PUSH_RETRY=$((PUSH_RETRY + 1))
-            if timeout 300 git push origin HEAD:"$BRANCH" 2>&1; then
-              PUSH_SUCCESS=true
-              echo "Push successful!"
-            else
-              echo "Push failed, attempt $PUSH_RETRY/5..."
-              git pull origin "$BRANCH" --rebase
-              sleep $((3 + RANDOM % 7))
+> ⚠️ **Note:** Large files are split into 45MB parts (.z01, .z02, etc.). Download all parts and open the .zip file to extract."
+            
+          echo "✅ Release created: $TAG_NAME"
+          echo ""
+          echo "Uploading files to Release..."
+          
+          # آپلود همه فایل‌های دانلود شده
+          FILE_COUNT=0
+          for file in downloads/*/*.zip downloads/*/*.z* downloads/*/README.md; do
+            if [ -f "$file" ]; then
+              echo "Uploading: $(basename "$file")"
+              gh release upload "$TAG_NAME" "$file" --clobber
+              FILE_COUNT=$((FILE_COUNT + 1))
             fi
           done
-
-          if [ "$PUSH_SUCCESS" = false ]; then
-            echo "Failed to push after 5 attempts"
-            exit 1
-          fi
-
+          
+          echo ""
           echo "=========================================="
-          echo "All files pushed successfully!"
+          echo "✅ Successfully uploaded $FILE_COUNT files!"
+          echo "📦 Release: $TAG_NAME"
+          echo "🔗 Download from: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
           echo "=========================================="
+          
+          # بروزرسانی README اصلی با لینک Release
+          echo "" >> README.md
+          echo "---" >> README.md
+          echo "" >> README.md
+          echo "## 📦 Latest Download" >> README.md
+          echo "" >> README.md
+          echo "[Download Files from Release](https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME)" >> README.md
+          
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
