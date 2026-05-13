@@ -34,27 +34,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Configure Git for Large Files
-        run: |
-          git config --global http.postBuffer 524288000
-          git config --global http.maxRequestBuffer 100M
-          git config --global core.compression 0
-          git config --global pack.windowMemory 256m
-          git config --global pack.packSizeLimit 100m
-          git config --global pack.threads 1
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          echo "Git configured for large file handling"
-
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y aria2 zip curl bc
 
-      - name: Download files
+      - name: Download and Create Release
         id: download
         run: |
-          set -x
           set -e
           
           MODE="${{ github.event.inputs.mode }}"
@@ -73,8 +60,9 @@ jobs:
           REPO_NAME="${{ github.event.repository.name }}"
           BRANCH="${GITHUB_REF_NAME}"
 
-          MAIN_DIR="downloads"
-          mkdir -p "$MAIN_DIR"
+          # پوشه موقت برای ساختار فولدری
+          RELEASE_DIR="release_$(date +%Y%m%d_%H%M%S)"
+          mkdir -p "$RELEASE_DIR"
           mkdir -p tmp_downloads
 
           echo "========================================="
@@ -82,6 +70,7 @@ jobs:
           echo "Mode: $MODE"
           echo "URLs: $URLS"
           echo "Split threshold: $SPLIT_THRESHOLD_MB MB"
+          echo "Release folder: $RELEASE_DIR"
           echo "========================================="
 
           RANDOM_WORDS=("alpha" "beta" "gamma" "delta" "epsilon" "zeta" "theta" "kappa" "lambda" "sigma" "omega" "nova" "star" "moon" "sun" "sky" "cloud" "river" "ocean" "mountain")
@@ -102,10 +91,6 @@ jobs:
               RANDOM_SUFFIX=$(get_random_word)
             done
             echo "${NAME}_${RANDOM_SUFFIX}"
-          }
-
-          clean_name() {
-            echo "$1" | sed 's|https\?://||' | sed 's|/|_|g' | sed 's/[^a-zA-Z0-9._-]/_/g' | cut -c1-60
           }
 
           urlencode() {
@@ -142,13 +127,13 @@ jobs:
                 local FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
                 if [ "$FILE_SIZE" -gt 0 ]; then
                   SUCCESS=true
-                  echo "aria2c download successful: $FILENAME"
+                  echo "Download successful: $FILENAME"
                   break
                 fi
               fi
 
               rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2" 2>/dev/null
-              echo "aria2c failed, trying curl fallback..."
+              echo "aria2c failed, trying curl..."
 
               curl -L -f -# \
                 --retry 3 \
@@ -163,7 +148,7 @@ jobs:
                 local FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
                 if [ "$FILE_SIZE" -gt 0 ]; then
                   SUCCESS=true
-                  echo "curl download successful: $FILENAME"
+                  echo "Download successful: $FILENAME"
                   break
                 fi
               fi
@@ -182,6 +167,7 @@ jobs:
             fi
           }
 
+          # دانلود فایل‌ها
           COUNTER=1
           for URL in $URLS; do
             FILENAME=$(basename "$URL" | sed 's/%20/ /g' | sed 's/%2F/-/g' | sed 's/[?#].*//')
@@ -192,291 +178,225 @@ jobs:
             COUNTER=$((COUNTER + 1))
           done
 
-          if [ "$MODE" = "zip" ]; then
-            if [ -n "$(ls -A tmp_downloads 2>/dev/null)" ]; then
-              ARCHIVE_NAME="archive_$(date +%Y%m%d_%H%M%S)"
-              FOLDER_NAME=$(get_unique_folder "$MAIN_DIR" "$ARCHIVE_NAME")
-              FOLDER_PATH="$MAIN_DIR/$FOLDER_NAME"
-              mkdir -p "$FOLDER_PATH"
+          # پردازش فایل‌ها و ساخت ساختار فولدری در RELEASE_DIR
+          for FILE in tmp_downloads/*; do
+            [ -f "$FILE" ] || continue
 
-              VALID_FILES=()
-              for f in tmp_downloads/*; do
-                if [ -f "$f" ] && [ -s "$f" ]; then
-                  VALID_FILES+=("$f")
+            if [ ! -s "$FILE" ]; then
+              echo "WARNING: Skipping empty file: $FILE"
+              rm -f "$FILE"
+              continue
+            fi
+
+            SIZE=$(stat -c%s "$FILE")
+            if [ "$SIZE" -le 0 ]; then
+              echo "WARNING: File has zero size: $FILE"
+              rm -f "$FILE"
+              continue
+            fi
+
+            BASENAME=$(basename "$FILE")
+            BASENAME_NO_EXT="${BASENAME%.*}"
+
+            # ساخت پوشه برای هر فایل
+            FOLDER_NAME=$(get_unique_folder "$RELEASE_DIR" "$BASENAME_NO_EXT")
+            FOLDER_PATH="$RELEASE_DIR/$FOLDER_NAME"
+            mkdir -p "$FOLDER_PATH"
+
+            if [ "$SIZE" -gt "$SPLIT_THRESHOLD_BYTES" ]; then
+              echo "$BASENAME is $(( SIZE / 1024 / 1024 ))MB - splitting into ${SPLIT_THRESHOLD_MB}MB parts"
+
+              if [ -n "$ZIP_PASSWORD" ]; then
+                zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
+                  "$FOLDER_PATH/$FOLDER_NAME.zip" \
+                  "$FILE" 2>/dev/null
+              else
+                zip -j -s ${SPLIT_THRESHOLD_MB}m \
+                  "$FOLDER_PATH/$FOLDER_NAME.zip" \
+                  "$FILE" 2>/dev/null
+              fi
+
+              # ساخت README با لینک‌های مستقیم
+              echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "## Download Information" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
+              echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
+              echo "| Original File | \`$BASENAME\` |" >> "$FOLDER_PATH/README.md"
+              echo "| Total Size | $(( SIZE / 1024 / 1024 )) MB |" >> "$FOLDER_PATH/README.md"
+              echo "| Split Size | ${SPLIT_THRESHOLD_MB} MB parts |" >> "$FOLDER_PATH/README.md"
+              if [ -n "$ZIP_PASSWORD" ]; then
+                echo "| Password Protected | YES |" >> "$FOLDER_PATH/README.md"
+              fi
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "## Direct Download Links (کلیک راست - Save Link As...)" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "| # | File | Size | Direct Link |" >> "$FOLDER_PATH/README.md"
+              echo "|---|------|------|-------------|" >> "$FOLDER_PATH/README.md"
+
+              LINK_NUM=1
+              for part_file in $(ls "$FOLDER_PATH/"*.zip "$FOLDER_PATH/"*.z[0-9]* 2>/dev/null | sort); do
+                if [ -f "$part_file" ]; then
+                  PART_NAME=$(basename "$part_file")
+                  PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "unknown")
+                  # لینک مستقیم به فایل در Release (بعداً آپلود می‌شود)
+                  echo "| $LINK_NUM | \`$PART_NAME\` | $PART_SIZE | \`[Download Link will appear after release]\` |" >> "$FOLDER_PATH/README.md"
+                  LINK_NUM=$((LINK_NUM + 1))
                 fi
               done
 
-              if [ ${#VALID_FILES[@]} -gt 0 ]; then
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
-                    "$FOLDER_PATH/$ARCHIVE_NAME.zip" \
-                    "${VALID_FILES[@]}" 2>/dev/null
-                else
-                  zip -j -s ${SPLIT_THRESHOLD_MB}m \
-                    "$FOLDER_PATH/$ARCHIVE_NAME.zip" \
-                    "${VALID_FILES[@]}" 2>/dev/null
-                fi
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "## How to Extract" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "1. Download all parts" >> "$FOLDER_PATH/README.md"
+              echo "2. Open \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, or any standard zip tool" >> "$FOLDER_PATH/README.md"
+              echo "3. Extract — all parts combine automatically" >> "$FOLDER_PATH/README.md"
+              if [ -n "$ZIP_PASSWORD" ]; then
+                echo "4. Enter the password when prompted" >> "$FOLDER_PATH/README.md"
+              fi
 
-                echo "# $ARCHIVE_NAME Archive" > "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## Download Information" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
-                echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
-                echo "| Archive Name | \`$ARCHIVE_NAME.zip\` |" >> "$FOLDER_PATH/README.md"
-                echo "| Number of files | ${#VALID_FILES[@]} |" >> "$FOLDER_PATH/README.md"
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  echo "| Password Protected | YES |" >> "$FOLDER_PATH/README.md"
-                fi
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## Download Links" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
+            else
+              echo "$BASENAME - creating zip archive"
 
-                FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
-                for part_file in $(ls "$FOLDER_PATH/"*.zip "$FOLDER_PATH/"*.z[0-9]* 2>/dev/null | sort); do
-                  if [ -f "$part_file" ]; then
-                    PART_BASENAME=$(basename "$part_file")
-                    PART_ENCODED=$(urlencode "$PART_BASENAME")
-                    RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${PART_ENCODED}"
-                    echo "- [\`$PART_BASENAME\`]($RAW_LINK)" >> "$FOLDER_PATH/README.md"
-                  fi
-                done
+              if [ -n "$ZIP_PASSWORD" ]; then
+                zip -j -P "${ZIP_PASSWORD}" \
+                  "$FOLDER_PATH/$FOLDER_NAME.zip" \
+                  "$FILE" 2>/dev/null
+              else
+                zip -j \
+                  "$FOLDER_PATH/$FOLDER_NAME.zip" \
+                  "$FILE" 2>/dev/null
+              fi
 
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## How to Extract" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "1. Download all parts" >> "$FOLDER_PATH/README.md"
-                echo "2. Open \`${ARCHIVE_NAME}.zip\` with WinRAR, 7-Zip, or any standard zip tool" >> "$FOLDER_PATH/README.md"
-                echo "3. Extract — all parts combine automatically" >> "$FOLDER_PATH/README.md"
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  echo "4. Enter the password when prompted" >> "$FOLDER_PATH/README.md"
-                fi
+              SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+              PART_SIZE=$(stat -c%s "$FOLDER_PATH/$FOLDER_NAME.zip" 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "unknown")
+
+              echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "## Download Information" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
+              echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
+              echo "| Original File | \`$BASENAME\` |" >> "$FOLDER_PATH/README.md"
+              echo "| Size | ${SIZE_MB} MB |" >> "$FOLDER_PATH/README.md"
+              if [ -n "$ZIP_PASSWORD" ]; then
+                echo "| Password Protected | YES |" >> "$FOLDER_PATH/README.md"
+              fi
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "## Direct Download Link" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "| File | Size | Direct Link |" >> "$FOLDER_PATH/README.md"
+              echo "|------|------|-------------|" >> "$FOLDER_PATH/README.md"
+              echo "| \`${FOLDER_NAME}.zip\` | $PART_SIZE | \`[Download Link will appear after release]\` |" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "## How to Extract" >> "$FOLDER_PATH/README.md"
+              echo "" >> "$FOLDER_PATH/README.md"
+              echo "Open the .zip file with WinRAR, 7-Zip, or any standard zip tool." >> "$FOLDER_PATH/README.md"
+              if [ -n "$ZIP_PASSWORD" ]; then
+                echo "Enter the password when prompted." >> "$FOLDER_PATH/README.md"
               fi
             fi
-            rm -rf tmp_downloads
 
-          else
-            for FILE in tmp_downloads/*; do
-              [ -f "$FILE" ] || continue
+            echo "Created: $FOLDER_NAME"
+          done
 
-              if [ ! -s "$FILE" ]; then
-                echo "WARNING: Skipping empty file: $FILE"
-                rm -f "$FILE"
-                continue
-              fi
+          rm -rf tmp_downloads
 
-              SIZE=$(stat -c%s "$FILE")
-              if [ "$SIZE" -le 0 ]; then
-                echo "WARNING: File has zero size: $FILE"
-                rm -f "$FILE"
-                continue
-              fi
-
-              BASENAME=$(basename "$FILE")
-              BASENAME_NO_EXT="${BASENAME%.*}"
-
-              FOLDER_NAME=$(get_unique_folder "$MAIN_DIR" "$BASENAME_NO_EXT")
-              FOLDER_PATH="$MAIN_DIR/$FOLDER_NAME"
-              mkdir -p "$FOLDER_PATH"
-
-              if [ "$SIZE" -gt "$SPLIT_THRESHOLD_BYTES" ]; then
-                echo "$BASENAME is $(( SIZE / 1024 / 1024 ))MB - splitting into ${SPLIT_THRESHOLD_MB}MB parts"
-
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
-                    "$FOLDER_PATH/$FOLDER_NAME.zip" \
-                    "$FILE" 2>/dev/null
-                else
-                  zip -j -s ${SPLIT_THRESHOLD_MB}m \
-                    "$FOLDER_PATH/$FOLDER_NAME.zip" \
-                    "$FILE" 2>/dev/null
-                fi
-
-                echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## Download Information" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
-                echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
-                echo "| Original File | \`$BASENAME\` |" >> "$FOLDER_PATH/README.md"
-                echo "| Total Size | $(( SIZE / 1024 / 1024 )) MB |" >> "$FOLDER_PATH/README.md"
-                echo "| Split Size | ${SPLIT_THRESHOLD_MB} MB parts |" >> "$FOLDER_PATH/README.md"
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  echo "| Password Protected | YES |" >> "$FOLDER_PATH/README.md"
-                fi
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## Download Links" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-
-                FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
-                for part_file in $(ls "$FOLDER_PATH/"*.zip "$FOLDER_PATH/"*.z[0-9]* 2>/dev/null | sort); do
-                  if [ -f "$part_file" ]; then
-                    PART_BASENAME=$(basename "$part_file")
-                    PART_ENCODED=$(urlencode "$PART_BASENAME")
-                    RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${PART_ENCODED}"
-                    echo "- [\`$PART_BASENAME\`]($RAW_LINK)" >> "$FOLDER_PATH/README.md"
-                  fi
-                done
-
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## How to Extract" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "1. Download all parts" >> "$FOLDER_PATH/README.md"
-                echo "2. Open \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, or any standard zip tool" >> "$FOLDER_PATH/README.md"
-                echo "3. Extract — all parts combine automatically" >> "$FOLDER_PATH/README.md"
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  echo "4. Enter the password when prompted" >> "$FOLDER_PATH/README.md"
-                fi
-
-              else
-                echo "$BASENAME - creating zip archive"
-
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  zip -j -P "${ZIP_PASSWORD}" \
-                    "$FOLDER_PATH/$FOLDER_NAME.zip" \
-                    "$FILE" 2>/dev/null
-                else
-                  zip -j \
-                    "$FOLDER_PATH/$FOLDER_NAME.zip" \
-                    "$FILE" 2>/dev/null
-                fi
-
-                SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
-
-                echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## Download Information" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "| Property | Value |" >> "$FOLDER_PATH/README.md"
-                echo "|----------|-------|" >> "$FOLDER_PATH/README.md"
-                echo "| Original File | \`$BASENAME\` |" >> "$FOLDER_PATH/README.md"
-                echo "| Size | ${SIZE_MB} MB |" >> "$FOLDER_PATH/README.md"
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  echo "| Password Protected | YES |" >> "$FOLDER_PATH/README.md"
-                fi
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## Download Link" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-
-                FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
-                FILE_ENCODED=$(urlencode "${FOLDER_NAME}.zip")
-                RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${FILE_ENCODED}"
-                echo "[Download]($RAW_LINK)" >> "$FOLDER_PATH/README.md"
-
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "## How to Extract" >> "$FOLDER_PATH/README.md"
-                echo "" >> "$FOLDER_PATH/README.md"
-                echo "Open the .zip file with WinRAR, 7-Zip, or any standard zip tool." >> "$FOLDER_PATH/README.md"
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  echo "Enter the password when prompted." >> "$FOLDER_PATH/README.md"
-                fi
-              fi
-
-              echo "Created: $FOLDER_NAME"
-            done
-            rm -rf tmp_downloads
-          fi
-
-          echo "# Downloads" > "$MAIN_DIR/README.md"
-          echo "" >> "$MAIN_DIR/README.md"
-          echo "This folder contains files downloaded by GitHub Downloader." >> "$MAIN_DIR/README.md"
-          echo "" >> "$MAIN_DIR/README.md"
-          echo "## Folders" >> "$MAIN_DIR/README.md"
-          echo "" >> "$MAIN_DIR/README.md"
-
-          for folder in "$MAIN_DIR"/*/; do
-            if [ -d "$folder" ]; then
-              folder_name=$(basename "$folder")
-              FOLDER_ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$folder_name'))")
-              echo "- [$folder_name](./$FOLDER_ENCODED/)" >> "$MAIN_DIR/README.md"
+          # ساخت README اصلی برای Release
+          echo "# GitHub Downloader - Release" > "$RELEASE_DIR/README.md"
+          echo "" >> "$RELEASE_DIR/README.md"
+          echo "## Downloaded Files" >> "$RELEASE_DIR/README.md"
+          echo "" >> "$RELEASE_DIR/README.md"
+          echo "| # | Folder | Description |" >> "$RELEASE_DIR/README.md"
+          echo "|---|--------|-------------|" >> "$RELEASE_DIR/README.md"
+          
+          FOLDER_NUM=1
+          for folder in "$RELEASE_DIR"/*/; do
+            if [ -d "$folder" ] && [ "$(basename "$folder")" != "README.md" ]; then
+              FOLDER_NAME=$(basename "$folder")
+              echo "| $FOLDER_NUM | \`$FOLDER_NAME\` | [Open Folder](./$FOLDER_NAME/README.md) |" >> "$RELEASE_DIR/README.md"
+              FOLDER_NUM=$((FOLDER_NUM + 1))
             fi
           done
 
+          echo "" >> "$RELEASE_DIR/README.md"
+          echo "---" >> "$RELEASE_DIR/README.md"
+          echo "*Downloaded at: $(date '+%Y-%m-%d %H:%M:%S UTC')*" >> "$RELEASE_DIR/README.md"
+
           echo "========================================="
-          echo "Download completed successfully"
+          echo "Download and processing completed"
+          echo "Release folder: $RELEASE_DIR"
           echo "========================================="
-
-      - name: Update root README with download links
-        run: |
-          REPO_OWNER="${{ github.repository_owner }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-          BRANCH="${GITHUB_REF_NAME}"
-          REPO_URL="${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}/downloads"
-
-          FOLDERS=$(find downloads -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort)
-
-          if [ -z "$FOLDERS" ]; then
-            echo "No folders found in downloads"
-            exit 0
-          fi
-
-          urlencode() {
-            python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
-          }
-
-          SECTION_TITLE="Downloaded Files"
-
-          if [ ! -f "README.md" ]; then
-            echo "# GitHub Downloader" > README.md
-            echo "" >> README.md
-            echo "A tool to download files using GitHub Actions." >> README.md
-            echo "" >> README.md
-          fi
-
-          if grep -q "$SECTION_TITLE" README.md; then
-            sed -i "/$SECTION_TITLE/,/^---$/d" README.md
-            sed -i '${/^$/d;}' README.md
-          fi
-
-          {
-            echo ""
-            echo "---"
-            echo ""
-            echo "## $SECTION_TITLE"
-            echo ""
-            COUNTER=1
-            echo "$FOLDERS" | while read -r FOLDER; do
-              if [ -n "$FOLDER" ]; then
-                FOLDER_ENCODED=$(urlencode "${FOLDER}")
-                echo "${COUNTER}. [$FOLDER]($REPO_URL/$FOLDER_ENCODED)"
-                echo ""
-                COUNTER=$((COUNTER + 1))
-              fi
-            done
-            echo "---"
-          } >> README.md
-
-          echo "README.md updated with download links"
+          
+          # ذخیره نام پوشه برای مرحله بعد
+          echo "$RELEASE_DIR" > /tmp/release_dir.txt
 
       - name: Create GitHub Release and Upload Files
         run: |
+          RELEASE_DIR=$(cat /tmp/release_dir.txt)
+          
           echo "=========================================="
-          echo "Creating GitHub Release for downloaded files"
+          echo "Creating GitHub Release with folder structure"
           echo "=========================================="
           
           TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
           RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
           
-          NOTES="Files downloaded from: ${{ github.event.inputs.urls }}
+          # محاسبه آمار
+          TOTAL_FILES=$(find "$RELEASE_DIR" -type f -not -name "README.md" 2>/dev/null | wc -l)
+          TOTAL_SIZE=$(du -sh "$RELEASE_DIR" 2>/dev/null | cut -f1)
           
-          Mode: ${{ github.event.inputs.mode }}
-          
-          Note: Large files are split into 45MB parts. Download all parts and open the .zip file to extract."
-          
+          # ایجاد Release
           gh release create "$TAG_NAME" \
             --title "$RELEASE_NAME" \
-            --notes "$NOTES"
+            --notes "📥 **Files downloaded from:** 
           
+${{ github.event.inputs.urls }}
+
+**Mode:** ${{ github.event.inputs.mode }}
+**Total Parts:** $TOTAL_FILES
+**Total Size:** $TOTAL_SIZE
+**Download Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')
+
+---
+
+## 📁 **How to Download:**
+
+1. **Click on each folder below** to see its contents
+2. **Right-click on each file link** and select \"Save Link As...\" 
+3. **Or drag the link directly** to your download manager
+
+---
+
+## 📂 **Download Links:**"
+          
+          echo ""
           echo "✅ Release created: $TAG_NAME"
           echo ""
-          echo "Uploading files to Release..."
+          echo "Uploading files with folder structure..."
           
+          # آپلود همه فایل‌ها با حفظ ساختار
           FILE_COUNT=0
-          for file in downloads/*/*.zip downloads/*/*.z* downloads/*/README.md; do
-            if [ -f "$file" ]; then
-              echo "Uploading: $(basename "$file")"
-              gh release upload "$TAG_NAME" "$file" --clobber
-              FILE_COUNT=$((FILE_COUNT + 1))
+          
+          # ابتدا README اصلی را آپلود کن
+          gh release upload "$TAG_NAME" "$RELEASE_DIR/README.md" --clobber
+          FILE_COUNT=$((FILE_COUNT + 1))
+          
+          # آپلود فایل‌های هر پوشه
+          for folder in "$RELEASE_DIR"/*/; do
+            if [ -d "$folder" ]; then
+              FOLDER_NAME=$(basename "$folder")
+              echo ""
+              echo "📁 Uploading folder: $FOLDER_NAME"
+              
+              for file in "$folder"/*; do
+                if [ -f "$file" ]; then
+                  echo "  📄 Uploading: $(basename "$file")"
+                  gh release upload "$TAG_NAME" "$file" --clobber
+                  FILE_COUNT=$((FILE_COUNT + 1))
+                fi
+              done
             fi
           done
           
@@ -484,15 +404,15 @@ jobs:
           echo "=========================================="
           echo "✅ Successfully uploaded $FILE_COUNT files!"
           echo "📦 Release: $TAG_NAME"
-          echo "🔗 Download from: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo ""
+          echo "🔗 **RELEASE URL:**"
+          echo "   https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo ""
+          echo "📁 **To download each file:"
+          echo "   1. Go to the Release page"
+          echo "   2. Click on each folder"
+          echo "   3. Right-click on file → Save Link As..."
           echo "=========================================="
-          
-          echo "" >> README.md
-          echo "---" >> README.md
-          echo "" >> README.md
-          echo "## 📦 Latest Download" >> README.md
-          echo "" >> README.md
-          echo "[Download Files from Release](https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME)" >> README.md
           
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
