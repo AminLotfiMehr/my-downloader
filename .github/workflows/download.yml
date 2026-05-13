@@ -457,15 +457,13 @@ jobs:
           TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
           RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
           
-          NOTES="Files downloaded from: ${{ github.event.inputs.url s }}
-          
-          Mode: ${{ github.event.inputs.mode }}
-          
-          Note: Large files are split into 45MB parts. Download all parts and open the .zip file to extract."
-          
           gh release create "$TAG_NAME" \
             --title "$RELEASE_NAME" \
-            --notes "$NOTES"
+            --notes "Files downloaded from: ${{ github.event.inputs.urls }}
+          
+Mode: ${{ github.event.inputs.mode }}
+          
+Note: Large files are split into 45MB parts. Download all parts and open the .zip file to extract."
           
           echo "✅ Release created: $TAG_NAME"
           echo ""
