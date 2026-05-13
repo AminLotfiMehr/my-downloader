@@ -56,6 +56,10 @@ jobs:
           SPLIT_THRESHOLD_MB=45
           SPLIT_THRESHOLD_BYTES=$(( SPLIT_THRESHOLD_MB * 1024 * 1024 ))
 
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          BRANCH="${GITHUB_REF_NAME}"
+
           RELEASE_DIR="release_$(date +%Y%m%d_%H%M%S)"
           mkdir -p "$RELEASE_DIR"
           mkdir -p tmp_downloads
@@ -65,6 +69,7 @@ jobs:
           echo "Mode: $MODE"
           echo "URLs: $URLS"
           echo "Split threshold: $SPLIT_THRESHOLD_MB MB"
+          echo "Release folder: $RELEASE_DIR"
           echo "========================================="
 
           RANDOM_WORDS=("alpha" "beta" "gamma" "delta" "epsilon" "zeta" "theta" "kappa" "lambda" "sigma" "omega" "nova" "star" "moon" "sun" "sky" "cloud" "river" "ocean" "mountain")
@@ -91,19 +96,65 @@ jobs:
             python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
           }
 
+          create_error_file() {
+            local FILENAME="$1"
+            local ERROR_MSG="$2"
+            local URL="$3"
+            local BASENAME_NO_EXT="${FILENAME%.*}"
+            local FOLDER_NAME=$(get_unique_folder "$RELEASE_DIR" "$BASENAME_NO_EXT")
+            mkdir -p "$RELEASE_DIR/$FOLDER_NAME"
+            {
+              echo "# ${FILENAME} - Download Failed"
+              echo ""
+              echo "---"
+              echo ""
+              echo "## Download Information"
+              echo ""
+              echo "| Property | Value |"
+              echo "|----------|-------|"
+              echo "| **File** | \`${FILENAME}\` |"
+              echo "| **URL** | ${URL} |"
+              echo "| **Date** | $(date '+%Y-%m-%d %H:%M:%S UTC') |"
+              echo "| **Status** | **FAILED** |"
+              echo ""
+              echo "---"
+              echo ""
+              echo "## Error Details"
+              echo ""
+              echo "\`\`\`"
+              echo "$ERROR_MSG"
+              echo "\`\`\`"
+              echo ""
+              echo "---"
+              echo ""
+              echo "## Possible Solutions"
+              echo ""
+              echo "- Check if the URL is correct and accessible"
+              echo "- The file may have been removed or moved"
+              echo "- The server may require authentication"
+              echo "- Some servers block automated downloads (403 Forbidden)"
+              echo "- Try again later if it is a temporary server issue"
+              echo ""
+            } > "$RELEASE_DIR/$FOLDER_NAME/README.md"
+            echo "Error file created: $RELEASE_DIR/$FOLDER_NAME/README.md"
+          }
+
           download_with_retry() {
             local URL="$1"
             local FILENAME="$2"
             local MAX_RETRIES=3
             local RETRY_DELAY=5
             local SUCCESS=false
+            local ERROR_LOG=""
 
             rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2" 2>/dev/null
 
             for ((attempt=1; attempt<=MAX_RETRIES; attempt++)); do
               echo "Attempt $attempt of $MAX_RETRIES for $FILENAME"
 
-              aria2c \
+              rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2" 2>/dev/null
+
+              ERROR_LOG=$(aria2c \
                 --split=4 \
                 --max-connection-per-server=4 \
                 --min-split-size=20M \
@@ -115,44 +166,55 @@ jobs:
                 --auto-file-renaming=false \
                 --dir="tmp_downloads" \
                 --out="$FILENAME" \
-                "$URL" 2>&1
+                "$URL" 2>&1)
 
               if [ -f "tmp_downloads/$FILENAME" ] && [ -s "tmp_downloads/$FILENAME" ]; then
-                SUCCESS=true
-                echo "Download successful: $FILENAME"
-                break
+                local FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
+                if [ "$FILE_SIZE" -gt 0 ]; then
+                  SUCCESS=true
+                  echo "aria2c download successful: $FILENAME (${FILE_SIZE} bytes)"
+                  break
+                fi
               fi
 
               rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2" 2>/dev/null
-              echo "Retrying with curl..."
+              echo "aria2c failed, trying curl fallback..."
 
-              curl -L -f -# \
+              ERROR_LOG=$(curl -L -f -# \
                 --retry 3 \
                 --retry-delay 5 \
                 --connect-timeout 30 \
                 --max-time 3600 \
-                -A "Mozilla/5.0" \
+                -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
                 -o "tmp_downloads/$FILENAME" \
-                "$URL" 2>&1
+                "$URL" 2>&1)
 
               if [ -f "tmp_downloads/$FILENAME" ] && [ -s "tmp_downloads/$FILENAME" ]; then
-                SUCCESS=true
-                echo "Download successful: $FILENAME"
-                break
+                local FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
+                if [ "$FILE_SIZE" -gt 0 ]; then
+                  SUCCESS=true
+                  echo "curl download successful: $FILENAME (${FILE_SIZE} bytes)"
+                  break
+                fi
               fi
 
               rm -f "tmp_downloads/$FILENAME" 2>/dev/null
-              echo "Attempt $attempt failed. Waiting ${RETRY_DELAY}s..."
+              echo "Attempt $attempt failed. Waiting ${RETRY_DELAY}s before retry..."
               sleep $RETRY_DELAY
               RETRY_DELAY=$((RETRY_DELAY * 2))
             done
 
-            if [ "$SUCCESS" = true ]; then
-              return 0
-            else
-              echo "Download failed: $FILENAME"
-              return 1
+            if [ "$SUCCESS" = true ] && [ -f "tmp_downloads/$FILENAME" ] && [ -s "tmp_downloads/$FILENAME" ]; then
+              local FINAL_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
+              if [ "$FINAL_SIZE" -gt 0 ]; then
+                echo "Successfully downloaded: $FILENAME ($FINAL_SIZE bytes)"
+                return 0
+              fi
             fi
+
+            rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2" 2>/dev/null
+            create_error_file "$FILENAME" "Download failed after $MAX_RETRIES attempts. Last error: $ERROR_LOG" "$URL"
+            return 1
           }
 
           for URL in $URLS; do
@@ -163,62 +225,309 @@ jobs:
             download_with_retry "$URL" "$FILENAME" || echo "Failed to download: $FILENAME"
           done
 
-          for FILE in tmp_downloads/*; do
-            [ -f "$FILE" ] || continue
-            [ -s "$FILE" ] || continue
+          if [ "$MODE" = "zip" ]; then
+            if [ -n "$(ls -A tmp_downloads 2>/dev/null)" ]; then
+              ARCHIVE_NAME="archive_$(date +%Y%m%d_%H%M%S)"
+              FOLDER_NAME=$(get_unique_folder "$RELEASE_DIR" "$ARCHIVE_NAME")
+              mkdir -p "$RELEASE_DIR/$FOLDER_NAME"
+              echo "Creating archive in folder: $RELEASE_DIR/$FOLDER_NAME"
 
-            SIZE=$(stat -c%s "$FILE")
-            BASENAME=$(basename "$FILE")
-            BASENAME_NO_EXT="${BASENAME%.*}"
+              VALID_FILES=()
+              for f in tmp_downloads/*; do
+                if [ -f "$f" ] && [ -s "$f" ]; then
+                  VALID_FILES+=("$f")
+                else
+                  echo "Skipping empty or invalid file: $f"
+                fi
+              done
 
-            FOLDER_NAME=$(get_unique_folder "$RELEASE_DIR" "$BASENAME_NO_EXT")
-            FOLDER_PATH="$RELEASE_DIR/$FOLDER_NAME"
-            mkdir -p "$FOLDER_PATH"
+              if [ ${#VALID_FILES[@]} -gt 0 ]; then
+                ARCHIVE_PATH="$RELEASE_DIR/$FOLDER_NAME/${ARCHIVE_NAME}.zip"
+                if [ -n "$ZIP_PASSWORD" ]; then
+                  zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
+                    "${ARCHIVE_PATH}" \
+                    "${VALID_FILES[@]}"
+                else
+                  zip -j -s ${SPLIT_THRESHOLD_MB}m \
+                    "${ARCHIVE_PATH}" \
+                    "${VALID_FILES[@]}"
+                fi
 
-            if [ "$SIZE" -gt "$SPLIT_THRESHOLD_BYTES" ]; then
-              echo "$BASENAME - splitting into ${SPLIT_THRESHOLD_MB}MB parts"
-              if [ -n "$ZIP_PASSWORD" ]; then
-                zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m "$FOLDER_PATH/$FOLDER_NAME.zip" "$FILE" 2>/dev/null
+                if [ ! -s "${ARCHIVE_PATH}" ] && [ -z "$(ls "$RELEASE_DIR/$FOLDER_NAME/"*.z[0-9]* 2>/dev/null)" ]; then
+                  echo "ERROR: Archive file is empty or not created!"
+                  rm -f "$RELEASE_DIR/$FOLDER_NAME/${ARCHIVE_NAME}".*
+                else
+                  FOLDER_ENCODED=$(urlencode "${FOLDER_NAME}")
+                  DOWNLOAD_LINKS_MD=""
+                  LINK_NUM=0
+                  TOTAL_ARCHIVE_SIZE=0
+                  for part_file in $(ls "$RELEASE_DIR/$FOLDER_NAME/"*.zip "$RELEASE_DIR/$FOLDER_NAME/"*.z[0-9]* 2>/dev/null | sort); do
+                    [ -f "$part_file" ] || continue
+                    PART_BASENAME=$(basename "$part_file")
+                    PART_ENCODED=$(urlencode "${PART_BASENAME}")
+                    LINK_NUM=$((LINK_NUM + 1))
+                    DOWNLOAD_LINKS_MD="${DOWNLOAD_LINKS_MD}| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
+                    PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
+                    TOTAL_ARCHIVE_SIZE=$((TOTAL_ARCHIVE_SIZE + PART_SIZE))
+                  done
+                  ARCHIVE_SIZE_MB=$(echo "scale=2; $TOTAL_ARCHIVE_SIZE / 1024 / 1024" | bc)
+
+                  {
+                    echo "# ${ARCHIVE_NAME} Archive"
+                    echo ""
+                    echo "---"
+                    echo ""
+                    echo "## Download Information"
+                    echo ""
+                    echo "| Property | Value |"
+                    echo "|----------|-------|"
+                    echo "| **Archive Name** | \`${ARCHIVE_NAME}.zip\` |"
+                    echo "| **Total Size** | ${ARCHIVE_SIZE_MB} MB (${LINK_NUM} parts) |"
+                    echo "| **Status** | **Complete (100%)** |"
+                    if [ -n "$ZIP_PASSWORD" ]; then
+                      echo "| **Password Protected** | **YES** |"
+                    else
+                      echo "| **Password Protected** | **NO** |"
+                    fi
+                    echo ""
+                    echo "---"
+                    echo ""
+                    echo "## Download Links"
+                    echo ""
+                    echo "| # | File | Link |"
+                    echo "|---|------|------|"
+                    printf '%s' "${DOWNLOAD_LINKS_MD}"
+                    echo ""
+                    echo "---"
+                    echo ""
+                    echo "## How to Extract"
+                    echo ""
+                    echo "1. **Download all parts** (\`.zip\`, \`.z01\`, \`.z02\`...)"
+                    echo "2. **Open** \`${ARCHIVE_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool"
+                    echo "3. **Extract** — all parts combine automatically"
+                    if [ -n "$ZIP_PASSWORD" ]; then
+                      echo "4. Enter the password when prompted"
+                    fi
+                    echo ""
+                  } > "$RELEASE_DIR/$FOLDER_NAME/README.md"
+                fi
               else
-                zip -j -s ${SPLIT_THRESHOLD_MB}m "$FOLDER_PATH/$FOLDER_NAME.zip" "$FILE" 2>/dev/null
-              fi
-            else
-              echo "$BASENAME - creating zip archive"
-              if [ -n "$ZIP_PASSWORD" ]; then
-                zip -j -P "${ZIP_PASSWORD}" "$FOLDER_PATH/$FOLDER_NAME.zip" "$FILE" 2>/dev/null
-              else
-                zip -j "$FOLDER_PATH/$FOLDER_NAME.zip" "$FILE" 2>/dev/null
+                echo "No valid files to archive!"
               fi
             fi
+            rm -rf tmp_downloads
+          else
+            for FILE in tmp_downloads/*; do
+              [ -f "$FILE" ] || continue
 
-            echo "# $BASENAME_NO_EXT" > "$FOLDER_PATH/README.md"
-            echo "" >> "$FOLDER_PATH/README.md"
-            echo "Original File: $BASENAME" >> "$FOLDER_PATH/README.md"
-            echo "Total Size: $(( SIZE / 1024 / 1024 )) MB" >> "$FOLDER_PATH/README.md"
-            echo "" >> "$FOLDER_PATH/README.md"
-            echo "## Download Links" >> "$FOLDER_PATH/README.md"
-            echo "" >> "$FOLDER_PATH/README.md"
+              if [ ! -s "$FILE" ]; then
+                echo "WARNING: Skipping empty file: $FILE"
+                rm -f "$FILE"
+                continue
+              fi
 
-            for part_file in $(ls "$FOLDER_PATH/"*.zip "$FOLDER_PATH/"*.z[0-9]* 2>/dev/null | sort); do
-              if [ -f "$part_file" ]; then
-                PART_NAME=$(basename "$part_file")
-                echo "- $PART_NAME" >> "$FOLDER_PATH/README.md"
+              SIZE=$(stat -c%s "$FILE")
+
+              if [ "$SIZE" -le 0 ]; then
+                echo "WARNING: File has zero or invalid size: $FILE"
+                rm -f "$FILE"
+                continue
+              fi
+
+              BASENAME=$(basename "$FILE")
+              BASENAME_NO_EXT="${BASENAME%.*}"
+
+              FOLDER_NAME=$(get_unique_folder "$RELEASE_DIR" "$BASENAME_NO_EXT")
+              mkdir -p "$RELEASE_DIR/$FOLDER_NAME"
+
+              FOLDER_ENCODED=$(urlencode "${FOLDER_NAME}")
+
+              if [ "$SIZE" -gt "$SPLIT_THRESHOLD_BYTES" ]; then
+                echo "$BASENAME is $(( SIZE / 1024 / 1024 ))MB - splitting into ${SPLIT_THRESHOLD_MB}MB parts"
+
+                ARCHIVE_BASE="$RELEASE_DIR/${FOLDER_NAME}/${FOLDER_NAME}"
+
+                if [ -n "$ZIP_PASSWORD" ]; then
+                  zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
+                    "${ARCHIVE_BASE}.zip" \
+                    "$FILE"
+                else
+                  zip -j -s ${SPLIT_THRESHOLD_MB}m \
+                    "${ARCHIVE_BASE}.zip" \
+                    "$FILE"
+                fi
+
+                PARTS_COUNT=$(ls "$RELEASE_DIR/${FOLDER_NAME}/"*.zip "$RELEASE_DIR/${FOLDER_NAME}/"*.z[0-9]* 2>/dev/null | wc -l)
+                echo "Parts created in folder $RELEASE_DIR/$FOLDER_NAME: $PARTS_COUNT files"
+
+                if [ "$PARTS_COUNT" -eq 0 ]; then
+                  echo "ERROR: No archive parts were created for $BASENAME"
+                  continue
+                fi
+
+                TOTAL_SIZE=0
+                for part_file in "$RELEASE_DIR/${FOLDER_NAME}"/*; do
+                  if [ -f "$part_file" ]; then
+                    PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
+                    TOTAL_SIZE=$((TOTAL_SIZE + PART_SIZE))
+                  fi
+                done
+                TOTAL_SIZE_MB=$(echo "scale=2; $TOTAL_SIZE / 1024 / 1024" | bc)
+
+                DOWNLOAD_LINKS_MD=""
+                LINK_NUM=0
+                for part_file in $(ls "$RELEASE_DIR/${FOLDER_NAME}/"*.zip "$RELEASE_DIR/${FOLDER_NAME}/"*.z[0-9]* 2>/dev/null | sort); do
+                  if [ -f "$part_file" ]; then
+                    PART_BASENAME=$(basename "$part_file")
+                    PART_ENCODED=$(urlencode "${PART_BASENAME}")
+                    LINK_NUM=$((LINK_NUM + 1))
+                    DOWNLOAD_LINKS_MD="${DOWNLOAD_LINKS_MD}| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
+                  fi
+                done
+
+                README_FILE="$RELEASE_DIR/${FOLDER_NAME}/README.md"
+                {
+                  printf '%s\n' "# ${BASENAME_NO_EXT}"
+                  printf '%s\n' ""
+                  printf '%s\n' "---"
+                  printf '%s\n' ""
+                  printf '%s\n' "## Download Information"
+                  printf '%s\n' ""
+                  printf '%s\n' "| Property | Value |"
+                  printf '%s\n' "|----------|-------|"
+                  printf '%s\n' "| **Original File** | \`${BASENAME}\` |"
+                  printf '%s\n' "| **Total Size** | **${PARTS_COUNT} parts** - **${TOTAL_SIZE_MB} MB** |"
+                  printf '%s\n' "| **Status** | **Complete (100%)** |"
+                  if [ -n "$ZIP_PASSWORD" ]; then
+                    printf '%s\n' "| **Password Protected** | **YES** |"
+                  else
+                    printf '%s\n' "| **Password Protected** | **NO** |"
+                  fi
+                  printf '%s\n' ""
+                  printf '%s\n' "---"
+                  printf '%s\n' ""
+                  printf '%s\n' "## Download Links"
+                  printf '%s\n' ""
+                  printf '%s\n' "| # | File | Link |"
+                  printf '%s\n' "|---|------|------|"
+                  printf '%s' "${DOWNLOAD_LINKS_MD}"
+                  printf '%s\n' ""
+                  printf '%s\n' "---"
+                  printf '%s\n' ""
+                  printf '%s\n' "## How to Extract"
+                  printf '%s\n' ""
+                  printf '%s\n' "1. **Download all parts** (\`.zip\`, \`.z01\`, \`.z02\`...)"
+                  printf '%s\n' "2. **Open** \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool"
+                  printf '%s\n' "3. **Extract** — all parts combine automatically"
+                  if [ -n "$ZIP_PASSWORD" ]; then
+                    printf '%s\n' "4. Enter the password when prompted"
+                  fi
+                  printf '%s\n' ""
+                } > "$README_FILE"
+
+                echo "Created README.md for split archive"
+
+              else
+                echo "$BASENAME - creating zip archive in folder: $RELEASE_DIR/$FOLDER_NAME"
+
+                if [ -n "$ZIP_PASSWORD" ]; then
+                  zip -j -P "${ZIP_PASSWORD}" \
+                    "$RELEASE_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip" \
+                    "$FILE"
+                else
+                  zip -j \
+                    "$RELEASE_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip" \
+                    "$FILE"
+                fi
+
+                if [ ! -s "$RELEASE_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip" ]; then
+                  echo "ERROR: Failed to create archive for $BASENAME"
+                  rm -f "$RELEASE_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip"
+                  continue
+                fi
+
+                SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+                FILE_ENCODED=$(urlencode "${FOLDER_NAME}.zip")
+
+                README_FILE="$RELEASE_DIR/${FOLDER_NAME}/README.md"
+                {
+                  printf '%s\n' "# ${BASENAME_NO_EXT}"
+                  printf '%s\n' ""
+                  printf '%s\n' "---"
+                  printf '%s\n' ""
+                  printf '%s\n' "## Download Information"
+                  printf '%s\n' ""
+                  printf '%s\n' "| Property | Value |"
+                  printf '%s\n' "|----------|-------|"
+                  printf '%s\n' "| **Original File** | \`${BASENAME}\` |"
+                  printf '%s\n' "| **Size** | ${SIZE_MB} MB |"
+                  printf '%s\n' "| **Status** | **Complete (100%)** |"
+                  if [ -n "$ZIP_PASSWORD" ]; then
+                    printf '%s\n' "| **Password Protected** | **YES** |"
+                  else
+                    printf '%s\n' "| **Password Protected** | **NO** |"
+                  fi
+                  printf '%s\n' ""
+                  printf '%s\n' "---"
+                  printf '%s\n' ""
+                  printf '%s\n' "## Download Link"
+                  printf '%s\n' ""
+                  printf '%s\n' "| File | Link |"
+                  printf '%s\n' "|------|------|"
+                  printf '%s\n' "| \`${FOLDER_NAME}.zip\` | [Download](${RAW_LINK}) |"
+                  printf '%s\n' ""
+                  printf '%s\n' "---"
+                  printf '%s\n' ""
+                  printf '%s\n' "## How to Extract"
+                  printf '%s\n' ""
+                  printf '%s\n' "1. **Open** \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool"
+                  printf '%s\n' "2. **Extract** the file"
+                  if [ -n "$ZIP_PASSWORD" ]; then
+                    printf '%s\n' "3. Enter the password when prompted"
+                  fi
+                  printf '%s\n' ""
+                } > "$README_FILE"
+
+                echo "Created zip archive and README.md"
               fi
             done
+            rm -rf tmp_downloads
+          fi
 
-            echo "" >> "$FOLDER_PATH/README.md"
-            echo "How to Extract: Download all parts and open the .zip file." >> "$FOLDER_PATH/README.md"
-
-            echo "Created: $FOLDER_NAME"
+          echo "# GitHub Downloader - Release" > "$RELEASE_DIR/README.md"
+          echo "" >> "$RELEASE_DIR/README.md"
+          echo "## Downloaded Files" >> "$RELEASE_DIR/README.md"
+          echo "" >> "$RELEASE_DIR/README.md"
+          echo "| # | Folder |" >> "$RELEASE_DIR/README.md"
+          echo "|---|--------|" >> "$RELEASE_DIR/README.md"
+          
+          FOLDER_NUM=1
+          for folder in "$RELEASE_DIR"/*/; do
+            if [ -d "$folder" ]; then
+              FOLDER_NAME=$(basename "$folder")
+              echo "| $FOLDER_NUM | \`$FOLDER_NAME\` |" >> "$RELEASE_DIR/README.md"
+              FOLDER_NUM=$((FOLDER_NUM + 1))
+            fi
           done
 
-          rm -rf tmp_downloads
-          echo "$RELEASE_DIR" > /tmp/release_dir.txt
-          echo "Processing completed"
+          echo "" >> "$RELEASE_DIR/README.md"
+          echo "---" >> "$RELEASE_DIR/README.md"
+          echo "*Downloaded at: $(date '+%Y-%m-%d %H:%M:%S UTC')*" >> "$RELEASE_DIR/README.md"
 
-      - name: Create GitHub Release and Upload
+          echo "========================================="
+          echo "Download and processing completed"
+          echo "Release folder: $RELEASE_DIR"
+          echo "========================================="
+          
+          echo "$RELEASE_DIR" > /tmp/release_dir.txt
+
+      - name: Create GitHub Release and Upload Files
         run: |
           RELEASE_DIR=$(cat /tmp/release_dir.txt)
+          
+          echo "=========================================="
+          echo "Creating GitHub Release with folder structure"
+          echo "=========================================="
           
           TAG_NAME="download-$(date +%Y%m%d-%H%M%S)"
           RELEASE_NAME="Downloaded Files - $(date +'%Y-%m-%d %H:%M:%S')"
@@ -228,17 +537,25 @@ jobs:
           echo "Release created: $TAG_NAME"
           echo "Uploading files..."
           
+          FILE_COUNT=0
+          
           for folder in "$RELEASE_DIR"/*/; do
             if [ -d "$folder" ]; then
+              echo "Uploading folder: $(basename "$folder")"
               for file in "$folder"/*; do
                 if [ -f "$file" ]; then
                   gh release upload "$TAG_NAME" "$file" --clobber
+                  FILE_COUNT=$((FILE_COUNT + 1))
                 fi
               done
             fi
           done
           
-          echo "Success! Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo ""
+          echo "=========================================="
+          echo "Successfully uploaded $FILE_COUNT files!"
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          echo "=========================================="
           
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
