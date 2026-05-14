@@ -1,7 +1,7 @@
 name: ⬇️ 01- Download URL
 
-permissions: 
- contents: write
+permissions:
+  contents: write
 
 on:
   workflow_dispatch:
@@ -26,10 +26,18 @@ on:
 jobs:
   download:
     runs-on: ubuntu-latest
+    env:
+      URLS: ${{ github.event.inputs.urls }}
+      MODE: ${{ github.event.inputs.mode }}
+      ZIP_PASSWORD: ${{ github.event.inputs.password }}
+
     steps:
+      # ─────────────────────────────────────────────
+      # ۱. بررسی ورودی
+      # ─────────────────────────────────────────────
       - name: Check URL provided
         run: |
-          if [ -z "${{ github.event.inputs.urls }}" ]; then
+          if [ -z "$URLS" ]; then
             echo ""
             echo "❌ لینک دانلود وارد نشده است!"
             echo ""
@@ -42,12 +50,18 @@ jobs:
           fi
           echo "✅ لینک دانلود دریافت شد"
 
+      # ─────────────────────────────────────────────
+      # ۲. چک‌اوت
+      # ─────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      # ─────────────────────────────────────────────
+      # ۳. تنظیم Git برای فایل‌های بزرگ
+      # ─────────────────────────────────────────────
       - name: Configure Git for Large Files
         run: |
           git config --global http.postBuffer 524288000
@@ -60,22 +74,29 @@ jobs:
           git config user.email "github-actions@github.com"
           echo "Git configured for large file handling"
 
+      # ─────────────────────────────────────────────
+      # ۴. نصب ابزارها
+      # ─────────────────────────────────────────────
       - name: Install aria2 and zip
         run: |
-          sudo apt-get update
+          sudo apt-get update -qq
           sudo apt-get install -y aria2 zip curl bc
 
+      # ─────────────────────────────────────────────
+      # ۵. برچسب نویسنده
+      # ─────────────────────────────────────────────
       - name: AminLotfiMehr Downloader
         run: |
           echo "🏷️  AminLotfiMehr - Your Download Solution"
           echo "🌐  https://github.com/AminLotfiMehr"
           echo ""
 
+      # ─────────────────────────────────────────────
+      # ۶. دانلود فایل‌ها
+      # ─────────────────────────────────────────────
       - name: Download files
         run: |
-          MODE="${{ github.event.inputs.mode }}"
-          URLS="${{ github.event.inputs.urls }}"
-          ZIP_PASSWORD="${{ github.event.inputs.password }}"
+          set -euo pipefail
 
           SPLIT_THRESHOLD_MB=45
           SPLIT_THRESHOLD_BYTES=$(( SPLIT_THRESHOLD_MB * 1024 * 1024 ))
@@ -88,8 +109,11 @@ jobs:
           mkdir -p "$BACKUP_DIR"
           echo "$BACKUP_DIR" > /tmp/backup_dir_path.txt
 
+          # پاک‌سازی خودکار در پایان
+          trap 'echo "Cleaning up tmp_downloads..."; rm -rf tmp_downloads' EXIT
+
           echo "AminLotfiMehr - Downloading with mode: $MODE"
-          echo "Split threshold: $SPLIT_THRESHOLD_MB MB (optimized for GitHub)"
+          echo "Split threshold: $SPLIT_THRESHOLD_MB MB"
           echo "Backup directory: $BACKUP_DIR"
           if [ -n "$ZIP_PASSWORD" ]; then
             echo "Password protection: ENABLED"
@@ -99,7 +123,11 @@ jobs:
 
           mkdir -p downloads tmp_downloads
 
-          RANDOM_WORDS=("alpha" "beta" "gamma" "delta" "epsilon" "zeta" "theta" "kappa" "lambda" "sigma" "omega" "nova" "star" "moon" "sun" "sky" "cloud" "river" "ocean" "mountain")
+          # ── توابع کمکی ──────────────────────────────
+
+          RANDOM_WORDS=("alpha" "beta" "gamma" "delta" "epsilon" "zeta"
+                        "theta" "kappa" "lambda" "sigma" "omega" "nova"
+                        "star" "moon" "sun" "sky" "cloud" "river" "ocean" "mountain")
 
           get_random_word() {
             echo "${RANDOM_WORDS[$RANDOM % ${#RANDOM_WORDS[@]}]}_$RANDOM"
@@ -112,64 +140,71 @@ jobs:
               echo "$NAME"
               return
             fi
-            local RANDOM_SUFFIX=$(get_random_word)
-            while [ -d "$BASE_PATH/${NAME}_${RANDOM_SUFFIX}" ] || [ -d "$BACKUP_DIR/${NAME}_${RANDOM_SUFFIX}" ]; do
+            local RANDOM_SUFFIX
+            RANDOM_SUFFIX=$(get_random_word)
+            while [ -d "$BASE_PATH/${NAME}_${RANDOM_SUFFIX}" ] || \
+                  [ -d "$BACKUP_DIR/${NAME}_${RANDOM_SUFFIX}" ]; do
               RANDOM_SUFFIX=$(get_random_word)
             done
             echo "${NAME}_${RANDOM_SUFFIX}"
           }
 
           urlencode() {
-            python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+            python3 -c \
+              "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" \
+              "$1"
           }
 
+          # ── ساخت فایل خطا ────────────────────────────
           create_error_file() {
             local FILENAME="$1"
             local ERROR_MSG="$2"
             local URL="$3"
             local BASENAME_NO_EXT="${FILENAME%.*}"
-            local FOLDER_NAME=$(get_unique_folder "$BACKUP_DIR" "$BASENAME_NO_EXT")
+            local FOLDER_NAME
+            FOLDER_NAME=$(get_unique_folder "$BACKUP_DIR" "$BASENAME_NO_EXT")
             mkdir -p "$BACKUP_DIR/$FOLDER_NAME"
-            {
-              echo "# ${FILENAME} - Download Failed"
-              echo ""
-              echo "---"
-              echo ""
-              echo "## Download Information"
-              echo ""
-              echo "| Property | Value |"
-              echo "|----------|-------|"
-              echo "| **File** | \`${FILENAME}\` |"
-              echo "| **URL** | ${URL} |"
-              echo "| **Date** | $(date '+%Y-%m-%d %H:%M:%S UTC') |"
-              echo "| **Status** | **FAILED** |"
-              echo ""
-              echo "---"
-              echo ""
-              echo "## Error Details"
-              echo ""
-              echo "\`\`\`"
-              echo "$ERROR_MSG"
-              echo "\`\`\`"
-              echo ""
-              echo "---"
-              echo ""
-              echo "## Possible Solutions"
-              echo ""
-              echo "- Check if the URL is correct and accessible"
-              echo "- The file may have been removed or moved"
-              echo "- The server may require authentication"
-              echo "- For SourceForge: Try using the direct download link"
-              echo "- Some servers block automated downloads (403 Forbidden)"
-              echo "- Try again later if it is a temporary server issue"
-              echo ""
-              echo "---"
-              echo ""
-              echo "*This tool created by [Amin.lotfi1987@gmail.com]*"
-            } > "$BACKUP_DIR/$FOLDER_NAME/README.md"
+            cat > "$BACKUP_DIR/$FOLDER_NAME/README.md" <<EOF
+# ${FILENAME} - Download Failed
+
+---
+
+## Download Information
+
+| Property | Value |
+|----------|-------|
+| **File** | \`${FILENAME}\` |
+| **URL** | ${URL} |
+| **Date** | $(date '+%Y-%m-%d %H:%M:%S UTC') |
+| **Status** | **FAILED** |
+
+---
+
+## Error Details
+
+\`\`\`
+${ERROR_MSG}
+\`\`\`
+
+---
+
+## Possible Solutions
+
+- Check if the URL is correct and accessible
+- The file may have been removed or moved
+- The server may require authentication
+- For SourceForge: Try using the direct download link
+- Some servers block automated downloads (403 Forbidden)
+- Try again later if it is a temporary server issue
+
+---
+
+*This tool created by [Amin.lotfi1987@gmail.com]*
+EOF
             echo "Error file created: $BACKUP_DIR/$FOLDER_NAME/README.md"
           }
 
+          # ── دانلود با تلاش مجدد ───────────────────────
           download_with_retry() {
             local URL="$1"
             local FILENAME="$2"
@@ -177,6 +212,7 @@ jobs:
             local RETRY_DELAY=5
             local SUCCESS=false
             local ERROR_LOG=""
+            local FILE_SIZE
 
             rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2"
 
@@ -185,6 +221,7 @@ jobs:
 
               rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2"
 
+              # تلاش اول: aria2c
               ERROR_LOG=$(aria2c \
                 --split=2 \
                 --max-connection-per-server=2 \
@@ -199,20 +236,19 @@ jobs:
                 --auto-file-renaming=false \
                 --dir="tmp_downloads" \
                 --out="$FILENAME" \
-                "$URL" 2>&1)
+                "$URL" 2>&1 || true)
 
-              if [ -f "tmp_downloads/$FILENAME" ] && [ -s "tmp_downloads/$FILENAME" ]; then
-                local FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
-                if [ "$FILE_SIZE" -gt 0 ]; then
-                  SUCCESS=true
-                  echo "aria2c download successful: $FILENAME (${FILE_SIZE} bytes)"
-                  break
-                fi
+              FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
+              if [ -f "tmp_downloads/$FILENAME" ] && [ "$FILE_SIZE" -gt 0 ]; then
+                SUCCESS=true
+                echo "aria2c download successful: $FILENAME (${FILE_SIZE} bytes)"
+                break
               fi
 
               rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2"
               echo "aria2c failed or file empty, trying curl fallback..."
 
+              # تلاش دوم: curl
               ERROR_LOG=$(curl -L -f -# \
                 --retry 3 \
                 --retry-delay 5 \
@@ -220,44 +256,51 @@ jobs:
                 --max-time 3600 \
                 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
                 -o "tmp_downloads/$FILENAME" \
-                "$URL" 2>&1)
+                "$URL" 2>&1 || true)
 
-              if [ -f "tmp_downloads/$FILENAME" ] && [ -s "tmp_downloads/$FILENAME" ]; then
-                local FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
-                if [ "$FILE_SIZE" -gt 0 ]; then
-                  SUCCESS=true
-                  echo "curl download successful: $FILENAME (${FILE_SIZE} bytes)"
-                  break
-                fi
+              FILE_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
+              if [ -f "tmp_downloads/$FILENAME" ] && [ "$FILE_SIZE" -gt 0 ]; then
+                SUCCESS=true
+                echo "curl download successful: $FILENAME (${FILE_SIZE} bytes)"
+                break
               fi
 
               rm -f "tmp_downloads/$FILENAME"
               echo "Attempt $attempt failed. Waiting ${RETRY_DELAY}s before retry..."
-              sleep $RETRY_DELAY
-              RETRY_DELAY=$((RETRY_DELAY * 2))
+              sleep "$RETRY_DELAY"
+              RETRY_DELAY=$(( RETRY_DELAY * 2 ))
             done
 
-            if [ "$SUCCESS" = true ] && [ -f "tmp_downloads/$FILENAME" ] && [ -s "tmp_downloads/$FILENAME" ]; then
-              local FINAL_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
-              if [ "$FINAL_SIZE" -gt 0 ]; then
-                echo "Successfully downloaded: $FILENAME ($FINAL_SIZE bytes)"
-                return 0
-              fi
+            local FINAL_SIZE
+            FINAL_SIZE=$(stat -c%s "tmp_downloads/$FILENAME" 2>/dev/null || echo "0")
+            if [ "$SUCCESS" = true ] && [ -f "tmp_downloads/$FILENAME" ] && \
+               [ "$FINAL_SIZE" -gt 0 ]; then
+              echo "Successfully downloaded: $FILENAME ($FINAL_SIZE bytes)"
+              return 0
             fi
 
             rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2"
-            create_error_file "$FILENAME" "Download failed after $MAX_RETRIES attempts. Last error: $ERROR_LOG" "$URL"
+            create_error_file "$FILENAME" \
+              "Download failed after $MAX_RETRIES attempts. Last error: $ERROR_LOG" \
+              "$URL"
             return 1
           }
 
-          for URL in $URLS; do
-            FILENAME=$(basename "$URL" | sed 's/%20/ /g' | sed 's/%2F/-/g' | sed 's/[?#].*//')
-            FILENAME=$(echo "$FILENAME" | sed 's/[<>:"|?*]/_/g')
+          # ── حلقه دانلود ──────────────────────────────
+          # خواندن URL‌ها به صورت امن (بدون word splitting ناخواسته)
+          read -ra URL_ARRAY <<< "$URLS"
+          for URL in "${URL_ARRAY[@]}"; do
+            FILENAME=$(basename "$URL" | sed 's/%20/ /g; s/%2F/-/g; s/[?#].*//')
+            FILENAME=$(echo "$FILENAME" | sed 's/[<>:"|?*\\]/_/g')
+            [ -z "$FILENAME" ] && FILENAME="downloaded_file_$RANDOM"
             echo "Downloading $URL -> $FILENAME"
-            download_with_retry "$URL" "$FILENAME" || echo "Failed to download: $FILENAME"
+            download_with_retry "$URL" "$FILENAME" || echo "⚠️ Failed to download: $FILENAME"
           done
 
+          # ── پردازش فایل‌ها بر اساس حالت ─────────────────
+
           if [ "$MODE" = "zip" ]; then
+            # ── حالت ZIP ──
             if [ -n "$(ls -A tmp_downloads 2>/dev/null)" ]; then
               ARCHIVE_NAME="archive_$(date +%Y%m%d_%H%M%S)"
               FOLDER_NAME=$(get_unique_folder "$BACKUP_DIR" "$ARCHIVE_NAME")
@@ -275,17 +318,18 @@ jobs:
 
               if [ ${#VALID_FILES[@]} -gt 0 ]; then
                 ARCHIVE_PATH="$BACKUP_DIR/$FOLDER_NAME/${ARCHIVE_NAME}.zip"
+
                 if [ -n "$ZIP_PASSWORD" ]; then
-                  zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
-                    "${ARCHIVE_PATH}" \
-                    "${VALID_FILES[@]}"
+                  zip -j -P "${ZIP_PASSWORD}" -s "${SPLIT_THRESHOLD_MB}m" \
+                    "${ARCHIVE_PATH}" "${VALID_FILES[@]}"
                 else
-                  zip -j -s ${SPLIT_THRESHOLD_MB}m \
-                    "${ARCHIVE_PATH}" \
-                    "${VALID_FILES[@]}"
+                  zip -j -s "${SPLIT_THRESHOLD_MB}m" \
+                    "${ARCHIVE_PATH}" "${VALID_FILES[@]}"
                 fi
 
-                if [ ! -s "${ARCHIVE_PATH}" ] && [ -z "$(ls "$BACKUP_DIR/$FOLDER_NAME/"*.z[0-9]* 2>/dev/null)" ]; then
+                PARTS=$(ls "$BACKUP_DIR/$FOLDER_NAME/"*.zip \
+                           "$BACKUP_DIR/$FOLDER_NAME/"*.z[0-9]* 2>/dev/null || true)
+                if [ -z "$PARTS" ]; then
                   echo "ERROR: Archive file is empty or not created!"
                   rm -f "$BACKUP_DIR/$FOLDER_NAME/${ARCHIVE_NAME}".*
                 else
@@ -293,90 +337,77 @@ jobs:
                   DOWNLOAD_LINKS_MD=""
                   LINK_NUM=0
                   TOTAL_ARCHIVE_SIZE=0
-                  for part_file in $(ls "$BACKUP_DIR/$FOLDER_NAME/"*.zip "$BACKUP_DIR/$FOLDER_NAME/"*.z[0-9]* 2>/dev/null | sort); do
+
+                  while IFS= read -r part_file; do
                     [ -f "$part_file" ] || continue
                     PART_BASENAME=$(basename "$part_file")
                     PART_ENCODED=$(urlencode "${PART_BASENAME}")
                     RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${PART_ENCODED}"
-                    LINK_NUM=$((LINK_NUM + 1))
-                    DOWNLOAD_LINKS_MD="${DOWNLOAD_LINKS_MD}| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
+                    LINK_NUM=$(( LINK_NUM + 1 ))
+                    DOWNLOAD_LINKS_MD+="| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
                     PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
-                    TOTAL_ARCHIVE_SIZE=$((TOTAL_ARCHIVE_SIZE + PART_SIZE))
-                  done
+                    TOTAL_ARCHIVE_SIZE=$(( TOTAL_ARCHIVE_SIZE + PART_SIZE ))
+                  done < <(ls "$BACKUP_DIR/$FOLDER_NAME/"*.zip \
+                              "$BACKUP_DIR/$FOLDER_NAME/"*.z[0-9]* 2>/dev/null | sort)
+
                   ARCHIVE_SIZE_MB=$(echo "scale=2; $TOTAL_ARCHIVE_SIZE / 1024 / 1024" | bc)
 
-                  {
-                    echo "# ${ARCHIVE_NAME} Archive"
-                    echo ""
-                    echo "---"
-                    echo ""
-                    echo "## Download Information"
-                    echo ""
-                    echo "| Property | Value |"
-                    echo "|----------|-------|"
-                    echo "| **Archive Name** | \`${ARCHIVE_NAME}.zip\` |"
-                    echo "| **Total Size** | ${ARCHIVE_SIZE_MB} MB (${LINK_NUM} parts) |"
-                    echo "| **Status** | **Complete (100%)** |"
-                    if [ -n "$ZIP_PASSWORD" ]; then
-                      echo "| **Password Protected** | **YES** |"
-                    else
-                      echo "| **Password Protected** | **NO** |"
-                    fi
-                    echo ""
-                    echo "---"
-                    echo ""
-                    echo "## Download Links"
-                    echo ""
-                    echo "| # | File | Link |"
-                    echo "|---|------|------|"
-                    printf '%s' "${DOWNLOAD_LINKS_MD}"
-                    echo ""
-                    echo "---"
-                    echo ""
-                    echo "## How to Extract"
-                    echo ""
-                    echo "1. **Download all parts** (\`.zip\`, \`.z01\`, \`.z02\`...)"
-                    echo "2. **Open** \`${ARCHIVE_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool"
-                    echo "3. **Extract** — all parts combine automatically"
-                    if [ -n "$ZIP_PASSWORD" ]; then
-                      echo "4. Enter the password when prompted"
-                    fi
-                    echo ""
-                    echo "---"
-                    echo ""
-                    echo "*This tool created by [Amin.lotfi1987@gmail.com]*"
-                  } > "$BACKUP_DIR/$FOLDER_NAME/README.md"
+                  cat > "$BACKUP_DIR/$FOLDER_NAME/README.md" <<EOF
+# ${ARCHIVE_NAME} Archive
+
+---
+
+## Download Information
+
+| Property | Value |
+|----------|-------|
+| **Archive Name** | \`${ARCHIVE_NAME}.zip\` |
+| **Total Size** | ${ARCHIVE_SIZE_MB} MB (${LINK_NUM} parts) |
+| **Status** | **Complete (100%)** |
+| **Password Protected** | $([ -n "$ZIP_PASSWORD" ] && echo "**YES**" || echo "**NO**") |
+
+---
+
+## Download Links
+
+| # | File | Link |
+|---|------|------|
+${DOWNLOAD_LINKS_MD}
+---
+
+## How to Extract
+
+1. **Download all parts** (\`.zip\`, \`.z01\`, \`.z02\`...)
+2. **Open** \`${ARCHIVE_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool
+3. **Extract** — all parts combine automatically
+$([ -n "$ZIP_PASSWORD" ] && echo "4. Enter the password when prompted")
+
+---
+
+*This tool created by [Amin.lotfi1987@gmail.com]*
+EOF
                 fi
               else
                 echo "No valid files to archive!"
               fi
             fi
-            rm -rf tmp_downloads
+
           else
+            # ── حالت Single ──
             for FILE in tmp_downloads/*; do
               [ -f "$FILE" ] || continue
 
-              if [ ! -s "$FILE" ]; then
-                echo "WARNING: Skipping empty file: $FILE"
-                rm -f "$FILE"
-                continue
-              fi
-
-              SIZE=$(stat -c%s "$FILE")
-
+              SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
               if [ "$SIZE" -le 0 ]; then
-                echo "WARNING: File has zero or invalid size: $FILE"
+                echo "WARNING: Skipping empty file: $FILE"
                 rm -f "$FILE"
                 continue
               fi
 
               BASENAME=$(basename "$FILE")
               BASENAME_NO_EXT="${BASENAME%.*}"
-              EXT="${BASENAME##*.}"
-
               FOLDER_NAME=$(get_unique_folder "$BACKUP_DIR" "$BASENAME_NO_EXT")
               mkdir -p "$BACKUP_DIR/$FOLDER_NAME"
-
               FOLDER_ENCODED=$(urlencode "${FOLDER_NAME}")
 
               if [ "$SIZE" -gt "$SPLIT_THRESHOLD_BYTES" ]; then
@@ -385,164 +416,123 @@ jobs:
                 ARCHIVE_BASE="$BACKUP_DIR/${FOLDER_NAME}/${FOLDER_NAME}"
 
                 if [ -n "$ZIP_PASSWORD" ]; then
-                  zip -j -P "${ZIP_PASSWORD}" -s ${SPLIT_THRESHOLD_MB}m \
-                    "${ARCHIVE_BASE}.zip" \
-                    "$FILE"
+                  zip -j -P "${ZIP_PASSWORD}" -s "${SPLIT_THRESHOLD_MB}m" \
+                    "${ARCHIVE_BASE}.zip" "$FILE"
                 else
-                  zip -j -s ${SPLIT_THRESHOLD_MB}m \
-                    "${ARCHIVE_BASE}.zip" \
-                    "$FILE"
+                  zip -j -s "${SPLIT_THRESHOLD_MB}m" \
+                    "${ARCHIVE_BASE}.zip" "$FILE"
                 fi
 
-                PARTS_COUNT=$(ls "$BACKUP_DIR/${FOLDER_NAME}/"*.zip "$BACKUP_DIR/${FOLDER_NAME}/"*.z[0-9]* 2>/dev/null | wc -l)
-                echo "Parts created in folder $BACKUP_DIR/$FOLDER_NAME: $PARTS_COUNT files"
+                PARTS_COUNT=$(ls "$BACKUP_DIR/${FOLDER_NAME}/"*.zip \
+                                 "$BACKUP_DIR/${FOLDER_NAME}/"*.z[0-9]* \
+                                 2>/dev/null | wc -l)
+                echo "Parts created: $PARTS_COUNT files"
 
                 if [ "$PARTS_COUNT" -eq 0 ]; then
-                  echo "ERROR: No archive parts were created for $BASENAME"
-                  continue
-                fi
+                  echo "ERROR: Splitting failed for $BASENAME"
+                  create_error_file "$BASENAME" "Splitting failed" ""
+                else
+                  DOWNLOAD_LINKS_MD=""
+                  LINK_NUM=0
+                  TOTAL_SIZE_PARTS=0
 
-                TOTAL_SIZE=0
-                for part_file in "$BACKUP_DIR/${FOLDER_NAME}"/*; do
-                  if [ -f "$part_file" ]; then
-                    PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
-                    TOTAL_SIZE=$((TOTAL_SIZE + PART_SIZE))
-                  fi
-                done
-                TOTAL_SIZE_MB=$(echo "scale=2; $TOTAL_SIZE / 1024 / 1024" | bc)
-
-                DOWNLOAD_LINKS_MD=""
-                LINK_NUM=0
-                for part_file in $(ls "$BACKUP_DIR/${FOLDER_NAME}/"*.zip "$BACKUP_DIR/${FOLDER_NAME}/"*.z[0-9]* 2>/dev/null | sort); do
-                  if [ -f "$part_file" ]; then
+                  while IFS= read -r part_file; do
+                    [ -f "$part_file" ] || continue
                     PART_BASENAME=$(basename "$part_file")
                     PART_ENCODED=$(urlencode "${PART_BASENAME}")
                     RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${PART_ENCODED}"
-                    LINK_NUM=$((LINK_NUM + 1))
-                    DOWNLOAD_LINKS_MD="${DOWNLOAD_LINKS_MD}| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
-                  fi
-                done
+                    LINK_NUM=$(( LINK_NUM + 1 ))
+                    DOWNLOAD_LINKS_MD+="| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
+                    PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
+                    TOTAL_SIZE_PARTS=$(( TOTAL_SIZE_PARTS + PART_SIZE ))
+                  done < <(ls "$BACKUP_DIR/${FOLDER_NAME}/"*.zip \
+                              "$BACKUP_DIR/${FOLDER_NAME}/"*.z[0-9]* \
+                              2>/dev/null | sort)
 
-                README_FILE="$BACKUP_DIR/${FOLDER_NAME}/README.md"
-                {
-                  printf '%s\n' "# ${BASENAME_NO_EXT}"
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "## Download Information"
-                  printf '%s\n' ""
-                  printf '%s\n' "| Property | Value |"
-                  printf '%s\n' "|----------|-------|"
-                  printf '%s\n' "| **Original File** | \`${BASENAME}\` |"
-                  printf '%s\n' "| **Total Size** | **${PARTS_COUNT} parts** - **${TOTAL_SIZE_MB} MB** |"
-                  printf '%s\n' "| **Status** | **Complete (100%)** |"
-                  if [ -n "$ZIP_PASSWORD" ]; then
-                    printf '%s\n' "| **Password Protected** | **YES** |"
-                  else
-                    printf '%s\n' "| **Password Protected** | **NO** |"
-                  fi
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "## Download Links"
-                  printf '%s\n' ""
-                  printf '%s\n' "| # | File | Link |"
-                  printf '%s\n' "|---|------|------|"
-                  printf '%s' "${DOWNLOAD_LINKS_MD}"
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "## How to Extract"
-                  printf '%s\n' ""
-                  printf '%s\n' "1. **Download all parts** (\`.zip\`, \`.z01\`, \`.z02\`...)"
-                  printf '%s\n' "2. **Open** \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool"
-                  printf '%s\n' "3. **Extract** — all parts combine automatically"
-                  if [ -n "$ZIP_PASSWORD" ]; then
-                    printf '%s\n' "4. Enter the password when prompted"
-                  fi
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "*This tool created by [Amin.lotfi1987@gmail.com]*"
-                } > "$README_FILE"
+                  SIZE_MB=$(echo "scale=2; $TOTAL_SIZE_PARTS / 1024 / 1024" | bc)
 
-                echo "Created README.md for split archive"
+                  cat > "$BACKUP_DIR/$FOLDER_NAME/README.md" <<EOF
+# ${BASENAME} - Split Archive
+
+---
+
+## Download Information
+
+| Property | Value |
+|----------|-------|
+| **Original File** | \`${BASENAME}\` |
+| **Total Size** | ${SIZE_MB} MB (${LINK_NUM} parts) |
+| **Status** | **Complete (100%)** |
+| **Password Protected** | $([ -n "$ZIP_PASSWORD" ] && echo "**YES**" || echo "**NO**") |
+
+---
+
+## Download Links
+
+| # | File | Link |
+|---|------|------|
+${DOWNLOAD_LINKS_MD}
+---
+
+## How to Extract
+
+1. **Download all parts** (\`.zip\`, \`.z01\`, \`.z02\`...)
+2. **Open** \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool
+3. **Extract** — all parts combine automatically
+$([ -n "$ZIP_PASSWORD" ] && echo "4. Enter the password when prompted")
+
+---
+
+*This tool created by [Amin.lotfi1987@gmail.com]*
+EOF
+                fi
 
               else
-                echo "$BASENAME - creating zip archive in folder: $BACKUP_DIR/$FOLDER_NAME"
+                # فایل کوچک — کپی مستقیم
+                cp "$FILE" "$BACKUP_DIR/$FOLDER_NAME/$BASENAME"
 
-                if [ -n "$ZIP_PASSWORD" ]; then
-                  zip -j -P "${ZIP_PASSWORD}" \
-                    "$BACKUP_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip" \
-                    "$FILE"
-                else
-                  zip -j \
-                    "$BACKUP_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip" \
-                    "$FILE"
-                fi
-
-                if [ ! -s "$BACKUP_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip" ]; then
-                  echo "ERROR: Failed to create archive for $BASENAME"
-                  rm -f "$BACKUP_DIR/${FOLDER_NAME}/${FOLDER_NAME}.zip"
-                  continue
-                fi
-
-                SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
-                FILE_ENCODED=$(urlencode "${FOLDER_NAME}.zip")
+                FILE_ENCODED=$(urlencode "${BASENAME}")
                 RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${FILE_ENCODED}"
+                SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
 
-                README_FILE="$BACKUP_DIR/${FOLDER_NAME}/README.md"
-                {
-                  printf '%s\n' "# ${BASENAME_NO_EXT}"
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "## Download Information"
-                  printf '%s\n' ""
-                  printf '%s\n' "| Property | Value |"
-                  printf '%s\n' "|----------|-------|"
-                  printf '%s\n' "| **Original File** | \`${BASENAME}\` |"
-                  printf '%s\n' "| **Size** | ${SIZE_MB} MB |"
-                  printf '%s\n' "| **Status** | **Complete (100%)** |"
-                  if [ -n "$ZIP_PASSWORD" ]; then
-                    printf '%s\n' "| **Password Protected** | **YES** |"
-                  else
-                    printf '%s\n' "| **Password Protected** | **NO** |"
-                  fi
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "## Download Link"
-                  printf '%s\n' ""
-                  printf '%s\n' "| File | Link |"
-                  printf '%s\n' "|------|------|"
-                  printf '%s\n' "| \`${FOLDER_NAME}.zip\` | [Download](${RAW_LINK}) |"
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "## How to Extract"
-                  printf '%s\n' ""
-                  printf '%s\n' "1. **Open** \`${FOLDER_NAME}.zip\` with WinRAR, 7-Zip, Ark, or any standard zip tool"
-                  printf '%s\n' "2. **Extract** the file"
-                  if [ -n "$ZIP_PASSWORD" ]; then
-                    printf '%s\n' "3. Enter the password when prompted"
-                  fi
-                  printf '%s\n' ""
-                  printf '%s\n' "---"
-                  printf '%s\n' ""
-                  printf '%s\n' "*This tool created by [Amin.lotfi1987@gmail.com]*"
-                } > "$README_FILE"
+                cat > "$BACKUP_DIR/$FOLDER_NAME/README.md" <<EOF
+# ${BASENAME}
 
-                echo "Created zip archive and README.md"
+---
+
+## Download Information
+
+| Property | Value |
+|----------|-------|
+| **Original File** | \`${BASENAME}\` |
+| **Size** | ${SIZE_MB} MB |
+| **Status** | **Complete (100%)** |
+| **Password Protected** | $([ -n "$ZIP_PASSWORD" ] && echo "**YES**" || echo "**NO**") |
+
+---
+
+## Download Link
+
+| File | Link |
+|------|------|
+| \`${BASENAME}\` | [Download](${RAW_LINK}) |
+
+---
+
+*This tool created by [Amin.lotfi1987@gmail.com]*
+EOF
+                echo "Copied $BASENAME to backup folder"
               fi
             done
-            rm -rf tmp_downloads
           fi
 
           echo ""
           echo "===== Backup folder contents ====="
           find "$BACKUP_DIR" -type f | head -50
 
+      # ─────────────────────────────────────────────
+      # ۷. بروزرسانی README
+      # ─────────────────────────────────────────────
       - name: Update README.md with download links
         run: |
           BACKUP_DIR=$(cat /tmp/backup_dir_path.txt)
@@ -551,48 +541,54 @@ jobs:
           BRANCH="${GITHUB_REF_NAME}"
           REPO_URL="${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}/downloads"
 
+          urlencode() {
+            python3 -c \
+              "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" \
+              "$1"
+          }
+
           mkdir -p downloads
-          if [ -d "$BACKUP_DIR" ] && [ "$(ls -A $BACKUP_DIR 2>/dev/null)" ]; then
+          if [ -d "$BACKUP_DIR" ] && [ -n "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]; then
             cp -r "$BACKUP_DIR"/* downloads/
           fi
 
-          FOLDERS=$(find downloads -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort)
+          FOLDERS=$(find downloads -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+                    2>/dev/null | sort)
 
           if [ -z "$FOLDERS" ]; then
             echo "No folders found in downloads"
             exit 0
           fi
 
-          urlencode() {
-            python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
-          }
-
+          # ساخت downloads/README.md
           {
             echo "# Downloaded list :"
             echo ""
             echo "$FOLDERS" | while read -r FOLDER; do
-              if [ -n "$FOLDER" ]; then
-                FOLDER_ENCODED=$(urlencode "${FOLDER}")
-                echo "- [${FOLDER}](./${FOLDER_ENCODED})"
-              fi
+              [ -n "$FOLDER" ] || continue
+              FOLDER_ENCODED=$(urlencode "${FOLDER}")
+              echo "- [${FOLDER}](./${FOLDER_ENCODED})"
             done
             echo ""
             echo "---"
             echo ""
             echo "*This tool created by [Amin.lotfi1987@gmail.com]*"
           } > "downloads/README.md"
+          echo "downloads/README.md updated"
 
-          echo "downloads/README.md created with list of downloaded files"
-
+          # ساخت/بروزرسانی README.md ریشه
           SECTION_TITLE="فایل های دانلود شده در گیتهاب شما :"
 
           if [ ! -f "README.md" ]; then
-            echo "# Amin.lotfi1987@gmail.com Downloader" > README.md
-            echo "" >> README.md
-            echo "Amin.lotfi1987@gmail.com" >> README.md
-            echo "" >> README.md
+            cat > README.md <<'EOF'
+# AminLotfiMehr Downloader
+
+Amin.lotfi1987@gmail.com
+
+EOF
           fi
 
+          # حذف بخش قبلی اگه وجود داشت
           if grep -q "$SECTION_TITLE" README.md; then
             sed -i "/$SECTION_TITLE/,/^---$/d" README.md
             sed -i '${/^$/d;}' README.md
@@ -606,31 +602,36 @@ jobs:
             echo ""
             COUNTER=1
             echo "$FOLDERS" | while read -r FOLDER; do
-              if [ -n "$FOLDER" ]; then
-                FOLDER_ENCODED=$(urlencode "${FOLDER}")
-                echo "${COUNTER}. [$FOLDER]($REPO_URL/$FOLDER_ENCODED)"
-                echo ""
-                COUNTER=$((COUNTER + 1))
-              fi
+              [ -n "$FOLDER" ] || continue
+              FOLDER_ENCODED=$(urlencode "${FOLDER}")
+              echo "${COUNTER}. [$FOLDER]($REPO_URL/$FOLDER_ENCODED)"
+              echo ""
+              COUNTER=$(( COUNTER + 1 ))
             done
             echo "---"
           } >> README.md
 
           echo "README.md updated with download links"
 
+      # ─────────────────────────────────────────────
+      # ۸. Commit و Push تدریجی
+      # ─────────────────────────────────────────────
       - name: Incremental Commit & Push
         run: |
+          set -uo pipefail
+
           BRANCH="${GITHUB_REF_NAME}"
           BACKUP_DIR=$(cat /tmp/backup_dir_path.txt)
           REPO_OWNER="${{ github.repository_owner }}"
           REPO_NAME="${{ github.event.repository.name }}"
+          AUTHOR="Amin.lotfi1987@gmail.com"
 
-          echo "Amin.lotfi1987@gmail.com  - Incremental Push Mode"
+          echo "$AUTHOR - Incremental Push Mode"
           echo "This method pushes files in batches to avoid timeout issues"
           echo ""
 
           BACKUP_FILE_COUNT=$(find "$BACKUP_DIR" -type f 2>/dev/null | wc -l)
-          echo "Total files to push: $BACKUP_FILE_COUNT"
+          echo "Total files in backup: $BACKUP_FILE_COUNT"
 
           if [ "$BACKUP_FILE_COUNT" -eq 0 ]; then
             echo "No files in backup directory, checking downloads folder..."
@@ -642,151 +643,134 @@ jobs:
           fi
 
           urlencode() {
-            python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+            python3 -c \
+              "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" \
+              "$1"
           }
 
+          # ── بازسازی downloads/README.md ──────────────
           regenerate_downloads_readme() {
-            DOWNLOADS_README="downloads/README.md"
-
+            local DOWNLOADS_README="downloads/README.md"
             echo "Regenerating downloads README..."
-
             {
               echo "# Downloaded list :"
               echo ""
-            } > "$DOWNLOADS_README"
-
-            for folder in downloads/*/; do
-              [ -d "$folder" ] || continue
-              FOLDER_NAME=$(basename "$folder")
-              [ -f "$folder/README.md" ] || continue
-              FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
-              printf -- "- [%s](./%s)\n" "$FOLDER_NAME" "$FOLDER_ENCODED" >> "$DOWNLOADS_README"
-            done
-
-            {
+              for folder in downloads/*/; do
+                [ -d "$folder" ] || continue
+                local FOLDER_NAME
+                FOLDER_NAME=$(basename "$folder")
+                [ -f "$folder/README.md" ] || continue
+                local FOLDER_ENCODED
+                FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
+                printf -- "- [%s](./%s)\n" "$FOLDER_NAME" "$FOLDER_ENCODED"
+              done
               echo ""
               echo "---"
               echo ""
               echo "*This tool created by [Amin.lotfi1987@gmail.com]*"
-            } >> "$DOWNLOADS_README"
-
+            } > "$DOWNLOADS_README"
             echo "Downloads README regenerated"
           }
 
+          # ── تابع push امن (مشترک برای همه جاها) ─────
+          # آرگومان‌ها: $1=پیام commit، $2...=فایل‌ها برای git add
+          safe_push() {
+            local COMMIT_MSG="$1"
+            shift
+            local FILES_TO_ADD=("$@")
+            local PUSH_RETRY=0
+            local MAX_PUSH=5
+
+            git fetch origin "$BRANCH" --quiet 2>/dev/null || true
+            git reset --hard "origin/$BRANCH" 2>/dev/null || true
+            mkdir -p downloads
+            cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+
+            for f in "${FILES_TO_ADD[@]}"; do
+              git add -f "$f" 2>/dev/null || true
+            done
+
+            if git diff --cached --quiet 2>/dev/null; then
+              echo "  No changes to commit."
+              return 0
+            fi
+
+            git commit -m "$COMMIT_MSG" --quiet 2>/dev/null || true
+
+            while [ $PUSH_RETRY -lt $MAX_PUSH ]; do
+              PUSH_RETRY=$(( PUSH_RETRY + 1 ))
+              if timeout 180 git push origin "HEAD:$BRANCH" 2>&1; then
+                echo "  Push successful! (attempt $PUSH_RETRY)"
+                return 0
+              fi
+              echo "  Push failed, attempt $PUSH_RETRY/$MAX_PUSH..."
+              sleep $(( 3 + RANDOM % 7 ))
+
+              git fetch origin "$BRANCH" --quiet 2>/dev/null || true
+              git reset --hard "origin/$BRANCH" 2>/dev/null || true
+              mkdir -p downloads
+              cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+              for f in "${FILES_TO_ADD[@]}"; do
+                git add -f "$f" 2>/dev/null || true
+              done
+              if ! git diff --cached --quiet 2>/dev/null; then
+                git commit -m "$COMMIT_MSG" --quiet 2>/dev/null || true
+              fi
+            done
+
+            echo "  WARNING: Push failed after $MAX_PUSH attempts"
+            return 1
+          }
+
+          # ── push دسته‌ای (batch) ─────────────────────
           push_batch() {
-            local BATCH_SIZE=3
+            # batch size بر اساس حجم: حداکثر ~80MB در هر batch
+            local MAX_BATCH_BYTES=$(( 80 * 1024 * 1024 ))
             local FILES=("$@")
-            local BATCH_COUNT=0
             local BATCH_FILES=()
+            local BATCH_BYTES=0
+            local BATCH_NUM=0
             local TOTAL_PUSHED=0
             local TOTAL_FILES=${#FILES[@]}
 
             for FILE in "${FILES[@]}"; do
+              local FSIZE
+              FSIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
               BATCH_FILES+=("$FILE")
-              BATCH_COUNT=$((BATCH_COUNT + 1))
+              BATCH_BYTES=$(( BATCH_BYTES + FSIZE ))
 
-              if [ $BATCH_COUNT -ge $BATCH_SIZE ]; then
-                TOTAL_PUSHED=$((TOTAL_PUSHED + BATCH_COUNT))
+              if [ "$BATCH_BYTES" -ge "$MAX_BATCH_BYTES" ]; then
+                BATCH_NUM=$(( BATCH_NUM + 1 ))
+                TOTAL_PUSHED=$(( TOTAL_PUSHED + ${#BATCH_FILES[@]} ))
                 echo ""
-                echo ">>> Pushing batch ($TOTAL_PUSHED/$TOTAL_FILES files)..."
-
-                git fetch origin "$BRANCH" --quiet 2>/dev/null || true
-                git reset --hard origin/"$BRANCH" 2>/dev/null || true
-
-                mkdir -p downloads
-                cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
-
-                for BF in "${BATCH_FILES[@]}"; do
-                  git add -f "$BF" 2>/dev/null || true
-                done
-
-                if ! git diff --cached --quiet 2>/dev/null; then
-                  git commit -m "[Amin.lotfi1987@gmail.com] Add batch of $BATCH_COUNT files [skip ci]" --quiet 2>/dev/null || true
-
-                  local PUSH_RETRY=0
-                  local PUSH_SUCCESS=false
-                  while [ $PUSH_RETRY -lt 5 ]; do
-                    PUSH_RETRY=$((PUSH_RETRY + 1))
-                    if timeout 180 git push origin HEAD:"$BRANCH" 2>&1; then
-                      PUSH_SUCCESS=true
-                      echo "    Batch pushed successfully!"
-                      break
-                    else
-                      echo "    Batch push failed, attempt $PUSH_RETRY/5..."
-                      git fetch origin "$BRANCH" --quiet 2>/dev/null || true
-                      git reset --hard origin/"$BRANCH" 2>/dev/null || true
-                      mkdir -p downloads
-                      cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
-                      for BF in "${BATCH_FILES[@]}"; do
-                        git add -f "$BF" 2>/dev/null || true
-                      done
-                      if ! git diff --cached --quiet 2>/dev/null; then
-                        git commit -m "[AminLotfi1987@gmail.com] Add batch of $BATCH_COUNT files [skip ci]" --quiet 2>/dev/null || true
-                      fi
-                      sleep $((3 + RANDOM % 7))
-                    fi
-                  done
-
-                  if [ "$PUSH_SUCCESS" = false ]; then
-                    echo "    WARNING: Batch push failed after 5 attempts"
-                  fi
-                fi
-
+                echo ">>> Pushing batch #$BATCH_NUM ($TOTAL_PUSHED/$TOTAL_FILES files, ~$(( BATCH_BYTES / 1024 / 1024 ))MB)..."
+                safe_push "[$AUTHOR] Add batch #$BATCH_NUM [skip ci]" \
+                  "${BATCH_FILES[@]}"
                 BATCH_FILES=()
-                BATCH_COUNT=0
+                BATCH_BYTES=0
                 sleep 2
               fi
             done
 
+            # آخرین batch باقی‌مانده
             if [ ${#BATCH_FILES[@]} -gt 0 ]; then
-              TOTAL_PUSHED=$((TOTAL_PUSHED + ${#BATCH_FILES[@]}))
+              BATCH_NUM=$(( BATCH_NUM + 1 ))
+              TOTAL_PUSHED=$(( TOTAL_PUSHED + ${#BATCH_FILES[@]} ))
               echo ""
-              echo ">>> Pushing final batch ($TOTAL_PUSHED/$TOTAL_FILES files)..."
-
-              git fetch origin "$BRANCH" --quiet 2>/dev/null || true
-              git reset --hard origin/"$BRANCH" 2>/dev/null || true
-              mkdir -p downloads
-              cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
-
-              for BF in "${BATCH_FILES[@]}"; do
-                git add -f "$BF" 2>/dev/null || true
-              done
-
-              if ! git diff --cached --quiet 2>/dev/null; then
-                git commit -m "[Amin.lotfi1987@gmail.com] Add final batch [skip ci]" --quiet 2>/dev/null || true
-
-                local PUSH_RETRY=0
-                while [ $PUSH_RETRY -lt 5 ]; do
-                  PUSH_RETRY=$((PUSH_RETRY + 1))
-                  if timeout 180 git push origin HEAD:"$BRANCH" 2>&1; then
-                    echo "    Final batch pushed successfully!"
-                    break
-                  else
-                    echo "    Push failed, attempt $PUSH_RETRY/5..."
-                    sleep $((3 + RANDOM % 7))
-                    git fetch origin "$BRANCH" --quiet 2>/dev/null || true
-                    git reset --hard origin/"$BRANCH" 2>/dev/null || true
-                    mkdir -p downloads
-                    cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
-                    for BF in "${BATCH_FILES[@]}"; do
-                      git add -f "$BF" 2>/dev/null || true
-                    done
-                    if ! git diff --cached --quiet 2>/dev/null; then
-                      git commit -m "[Amin.lotfi1987@gmail.com] Add final batch [skip ci]" --quiet 2>/dev/null || true
-                    fi
-                  fi
-                done
-              fi
+              echo ">>> Pushing final batch #$BATCH_NUM ($TOTAL_PUSHED/$TOTAL_FILES files)..."
+              safe_push "[$AUTHOR] Add final batch [skip ci]" \
+                "${BATCH_FILES[@]}"
             fi
           }
 
+          # ── آماده‌سازی لیست فایل‌ها ──────────────────
           echo ""
           echo "=========================================="
           echo "Starting incremental push process..."
           echo "=========================================="
 
           git fetch origin "$BRANCH"
-          git reset --hard origin/"$BRANCH"
+          git reset --hard "origin/$BRANCH"
 
           mkdir -p downloads
           cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
@@ -794,106 +778,66 @@ jobs:
           echo "Analyzing files to push..."
           ALL_FILES=()
 
+          # اول README‌ها
           while IFS= read -r -d '' FILE; do
             ALL_FILES+=("$FILE")
           done < <(find downloads -name "README.md" -print0 2>/dev/null)
 
+          # بعد فایل‌های اصلی
           while IFS= read -r -d '' FILE; do
             ALL_FILES+=("$FILE")
-          done < <(find downloads -type f \( -name "*.zip" -o -name "*.z[0-9][0-9]" -o -name "*.z[0-9]" -o -name "*.mp4" -o -name "*.mp3" -o -name "*.m4a" -o -name "*.exe" -o -name "*.iso" -o -name "*.tar*" -o -name "*.rar" \) -print0 2>/dev/null | sort -z)
+          done < <(find downloads -type f \
+              \( -name "*.zip" -o -name "*.z[0-9][0-9]" -o -name "*.z[0-9]" \
+                 -o -name "*.mp4" -o -name "*.mp3" -o -name "*.m4a" \
+                 -o -name "*.exe" -o -name "*.iso" \
+                 -o -name "*.tar*" -o -name "*.rar" \) \
+              -print0 2>/dev/null | sort -z)
 
           TOTAL_FILES=${#ALL_FILES[@]}
           echo "Found $TOTAL_FILES files to push"
-          echo ""
 
-          if [ $TOTAL_FILES -eq 0 ]; then
+          if [ "$TOTAL_FILES" -eq 0 ]; then
             git add README.md 2>/dev/null || true
             if ! git diff --cached --quiet 2>/dev/null; then
-              git commit -m "[AminLotfiMehe] Update README [skip ci]"
-              timeout 120 git push origin HEAD:"$BRANCH" || true
+              git commit -m "[$AUTHOR] Update README [skip ci]"
+              timeout 120 git push origin "HEAD:$BRANCH" || true
             fi
             echo "No download files to push!"
             exit 0
           fi
 
+          # حساب حجم کل
           TOTAL_SIZE=0
           for F in "${ALL_FILES[@]}"; do
-            if [ -f "$F" ]; then
-              FSIZE=$(stat -c%s "$F" 2>/dev/null || echo 0)
-              TOTAL_SIZE=$((TOTAL_SIZE + FSIZE))
-            fi
+            [ -f "$F" ] || continue
+            FSIZE=$(stat -c%s "$F" 2>/dev/null || echo 0)
+            TOTAL_SIZE=$(( TOTAL_SIZE + FSIZE ))
           done
-          TOTAL_SIZE_MB=$((TOTAL_SIZE / 1024 / 1024))
+          TOTAL_SIZE_MB=$(( TOTAL_SIZE / 1024 / 1024 ))
           echo "Total size: ${TOTAL_SIZE_MB}MB"
           echo ""
 
-          if [ $TOTAL_SIZE_MB -lt 100 ]; then
+          if [ "$TOTAL_SIZE_MB" -lt 100 ]; then
+            # آپلود یک‌جا برای فایل‌های کوچک
             echo "Small upload - pushing all at once..."
-
-            git add -f -A downloads/
-            git add README.md
-
-            if ! git diff --cached --quiet; then
-              git commit -m "[AminLotfiMehr] Downloaded files [skip ci]"
-
-              PUSH_RETRY=0
-              while [ $PUSH_RETRY -lt 10 ]; do
-                PUSH_RETRY=$((PUSH_RETRY + 1))
-                if timeout 300 git push origin HEAD:"$BRANCH"; then
-                  echo "Push successful!"
-                  break
-                else
-                  echo "Push failed, retry $PUSH_RETRY/10..."
-                  sleep $((3 + RANDOM % 7))
-                  git fetch origin "$BRANCH"
-                  git reset --hard origin/"$BRANCH"
-                  mkdir -p downloads
-                  cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
-                  git add -f -A downloads/
-                  git add README.md
-                  if ! git diff --cached --quiet; then
-                    git commit -m "[AminLotfiMehr] Downloaded files [skip ci]"
-                  fi
-                fi
-              done
-            fi
-
+            safe_push "[$AUTHOR] Downloaded files [skip ci]" \
+              "downloads/" "README.md"
           else
+            # آپلود دسته‌ای برای فایل‌های بزرگ
             echo "Large upload (${TOTAL_SIZE_MB}MB) - using incremental batch push..."
             echo ""
-
             push_batch "${ALL_FILES[@]}"
 
+            # پوش نهایی README
             echo ""
             echo "Pushing README files..."
-            git fetch origin "$BRANCH" --quiet 2>/dev/null || true
-            git reset --hard origin/"$BRANCH" 2>/dev/null || true
-            mkdir -p downloads
-            cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
-
             regenerate_downloads_readme
-            git add -f downloads/README.md
-            git add README.md
-
-            if ! git diff --cached --quiet 2>/dev/null; then
-              git commit -m "[Amin.lotfi1987@gmail.com] Update download list [skip ci]" --quiet 2>/dev/null || true
-
-              PUSH_RETRY=0
-              while [ $PUSH_RETRY -lt 5 ]; do
-                PUSH_RETRY=$((PUSH_RETRY + 1))
-                if timeout 60 git push origin HEAD:"$BRANCH" 2>&1; then
-                  echo "README pushed!"
-                  break
-                else
-                  echo "README push failed, retry $PUSH_RETRY/5..."
-                  sleep 3
-                fi
-              done
-            fi
+            safe_push "[$AUTHOR] Update download list [skip ci]" \
+              "downloads/README.md" "README.md"
           fi
 
           echo ""
           echo "=========================================="
           echo "All files pushed successfully!"
-          echo "َAminLotfiMehr"
+          echo "AminLotfiMehr"
           echo "=========================================="
