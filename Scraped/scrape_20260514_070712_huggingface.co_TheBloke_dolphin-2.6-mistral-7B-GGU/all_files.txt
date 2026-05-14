@@ -1,0 +1,15 @@
+.gitattributes
+README.md
+config.json
+dolphin-2.6-mistral-7b.Q2_K.gguf
+dolphin-2.6-mistral-7b.Q3_K_L.gguf
+dolphin-2.6-mistral-7b.Q3_K_M.gguf
+dolphin-2.6-mistral-7b.Q3_K_S.gguf
+dolphin-2.6-mistral-7b.Q4_0.gguf
+dolphin-2.6-mistral-7b.Q4_K_M.gguf
+dolphin-2.6-mistral-7b.Q4_K_S.gguf
+dolphin-2.6-mistral-7b.Q5_0.gguf
+dolphin-2.6-mistral-7b.Q5_K_M.gguf
+dolphin-2.6-mistral-7b.Q5_K_S.gguf
+dolphin-2.6-mistral-7b.Q6_K.gguf
+dolphin-2.6-mistral-7b.Q8_0.gguf

@@ -1,0 +1,24 @@
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q2_K.gguf|1381
+3011756.78 KB|0|dolphin-2.6-mistral-7b.Q2_K.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q3_K_L.gguf|1383
+3733365.18 KB|0|dolphin-2.6-mistral-7b.Q3_K_L.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q3_K_M.gguf|1381
+3437429.18 KB|0|dolphin-2.6-mistral-7b.Q3_K_M.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q3_K_S.gguf|1383
+3091317.18 KB|0|dolphin-2.6-mistral-7b.Q3_K_S.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q4_0.gguf|1387
+4013533.71 KB|0|dolphin-2.6-mistral-7b.Q4_0.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q4_K_M.gguf|1387
+4266973.71 KB|0|dolphin-2.6-mistral-7b.Q4_K_M.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q4_K_S.gguf|1391
+4044253.71 KB|0|dolphin-2.6-mistral-7b.Q4_K_S.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q5_0.gguf|1379
+4881502.21 KB|0|dolphin-2.6-mistral-7b.Q5_0.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q5_K_M.gguf|1389
+5012062.21 KB|0|dolphin-2.6-mistral-7b.Q5_K_M.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q5_K_S.gguf|1391
+4881502.21 KB|0|dolphin-2.6-mistral-7b.Q5_K_S.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q6_K.gguf|1387
+5803718.75 KB|0|dolphin-2.6-mistral-7b.Q6_K.gguf
+https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF/resolve/main/dolphin-2.6-mistral-7b.Q8_0.gguf|1373
+7516408.68 KB|0|dolphin-2.6-mistral-7b.Q8_0.gguf

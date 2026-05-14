@@ -1,0 +1,10 @@
+{
+  "target_url": "https://huggingface.co/TheBloke/dolphin-2.6-mistral-7B-GGUF",
+  "file_extensions": ".gguf",
+  "min_file_size_mb": 0,
+  "max_file_size_mb": 0,
+  "max_pages": 0,
+  "show_all_links": false,
+  "recursive_depth": "0",
+  "scrape_time": "2026-05-14T07:07:12+00:00"
+}
