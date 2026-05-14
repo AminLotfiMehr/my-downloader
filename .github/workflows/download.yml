@@ -344,7 +344,7 @@ EOF
                     PART_ENCODED=$(urlencode "${PART_BASENAME}")
                     RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${PART_ENCODED}"
                     LINK_NUM=$(( LINK_NUM + 1 ))
-                    DOWNLOAD_LINKS_MD+="| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
+                    DOWNLOAD_LINKS_MD="${DOWNLOAD_LINKS_MD}| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
                     PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
                     TOTAL_ARCHIVE_SIZE=$(( TOTAL_ARCHIVE_SIZE + PART_SIZE ))
                   done < <(ls "$BACKUP_DIR/$FOLDER_NAME/"*.zip \
@@ -442,7 +442,7 @@ EOF
                     PART_ENCODED=$(urlencode "${PART_BASENAME}")
                     RAW_LINK="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}/downloads/${FOLDER_ENCODED}/${PART_ENCODED}"
                     LINK_NUM=$(( LINK_NUM + 1 ))
-                    DOWNLOAD_LINKS_MD+="| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
+                    DOWNLOAD_LINKS_MD="${DOWNLOAD_LINKS_MD}| ${LINK_NUM} | \`${PART_BASENAME}\` | [Download](${RAW_LINK}) |"$'\n'
                     PART_SIZE=$(stat -c%s "$part_file" 2>/dev/null || echo 0)
                     TOTAL_SIZE_PARTS=$(( TOTAL_SIZE_PARTS + PART_SIZE ))
                   done < <(ls "$BACKUP_DIR/${FOLDER_NAME}/"*.zip \
@@ -662,7 +662,7 @@ EOF
                 [ -f "$folder/README.md" ] || continue
                 local FOLDER_ENCODED
                 FOLDER_ENCODED=$(urlencode "$FOLDER_NAME")
-                printf -- "- [%s](./%s)\n" "$FOLDER_NAME" "$FOLDER_ENCODED"
+                echo "- [${FOLDER_NAME}](./${FOLDER_ENCODED})"
               done
               echo ""
               echo "---"
@@ -839,5 +839,4 @@ EOF
           echo ""
           echo "=========================================="
           echo "All files pushed successfully!"
-          echo "AminLotfiMehr"
-          echo "=========================================="
+          echo "AminLotfiMe
