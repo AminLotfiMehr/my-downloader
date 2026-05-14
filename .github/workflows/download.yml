@@ -500,18 +500,30 @@ jobs:
           set -uo pipefail
 
           BRANCH="${GITHUB_REF_NAME}"
-          BACKUP_DIR=$(cat /tmp/backup_dir_path.txt)
+          BACKUP_DIR=$(cat /tmp/backup_dir_path.txt 2>/dev/null || echo "")
           AUTHOR="Amin.lotfi1987@gmail.com"
 
           echo "$AUTHOR - Incremental Push Mode"
 
-          BACKUP_FILE_COUNT=$(find "$BACKUP_DIR" -type f 2>/dev/null | wc -l)
-          echo "Total files in backup: $BACKUP_FILE_COUNT"
+          # بررسی وجود BACKUP_DIR و فایل‌های معتبر
+          if [ -z "$BACKUP_DIR" ] || [ ! -d "$BACKUP_DIR" ]; then
+            echo "WARNING: BACKUP_DIR not found or empty"
+            BACKUP_DIR=""
+          fi
+
+          if [ -n "$BACKUP_DIR" ]; then
+            BACKUP_FILE_COUNT=$(find "$BACKUP_DIR" -type f 2>/dev/null | wc -l || echo "0")
+            echo "Total files in backup: $BACKUP_FILE_COUNT"
+          else
+            BACKUP_FILE_COUNT=0
+            echo "No backup directory found"
+          fi
 
           if [ "$BACKUP_FILE_COUNT" -eq 0 ]; then
-            DOWNLOAD_FILE_COUNT=$(find downloads -type f 2>/dev/null | wc -l)
+            DOWNLOAD_FILE_COUNT=$(find downloads -type f 2>/dev/null | wc -l || echo "0")
             if [ "$DOWNLOAD_FILE_COUNT" -eq 0 ]; then
               echo "Nothing to push"
+              # خروج موفق بدون خطا
               exit 0
             fi
           fi
@@ -545,8 +557,12 @@ jobs:
 
             git fetch origin "$BRANCH" --quiet 2>/dev/null || true
             git reset --hard "origin/$BRANCH" 2>/dev/null || true
-            mkdir -p downloads
-            cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+            
+            # فقط در صورتی که BACKUP_DIR معتبر باشد کپی کن
+            if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+              mkdir -p downloads
+              cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+            fi
 
             for f in "${FILES_TO_ADD[@]}"; do
               git add -f "$f" 2>/dev/null || true
@@ -569,8 +585,10 @@ jobs:
               sleep $(( 3 + RANDOM % 7 ))
               git fetch origin "$BRANCH" --quiet 2>/dev/null || true
               git reset --hard "origin/$BRANCH" 2>/dev/null || true
-              mkdir -p downloads
-              cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+              if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+                mkdir -p downloads
+                cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+              fi
               for f in "${FILES_TO_ADD[@]}"; do
                 git add -f "$f" 2>/dev/null || true
               done
@@ -623,35 +641,44 @@ jobs:
           echo "Starting incremental push process..."
           echo "=========================================="
 
-          git fetch origin "$BRANCH"
-          git reset --hard "origin/$BRANCH"
-          mkdir -p downloads
-          cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+          git fetch origin "$BRANCH" || true
+          git reset --hard "origin/$BRANCH" || true
+          
+          if [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ]; then
+            mkdir -p downloads
+            cp -r "$BACKUP_DIR"/* downloads/ 2>/dev/null || true
+          fi
 
           ALL_FILES=()
-          while IFS= read -r -d '' FILE; do
-            ALL_FILES+=("$FILE")
-          done < <(find downloads -name "README.md" -print0 2>/dev/null)
+          # فقط در صورتی که پوشه downloads وجود داشته باشد فایل‌ها را جمع‌آوری کن
+          if [ -d "downloads" ]; then
+            while IFS= read -r -d '' FILE; do
+              ALL_FILES+=("$FILE")
+            done < <(find downloads -name "README.md" -print0 2>/dev/null || true)
 
-          while IFS= read -r -d '' FILE; do
-            ALL_FILES+=("$FILE")
-          done < <(find downloads -type f \
-              \( -name "*.zip" -o -name "*.z[0-9][0-9]" -o -name "*.z[0-9]" \
-                 -o -name "*.mp4" -o -name "*.mp3" -o -name "*.m4a" \
-                 -o -name "*.exe" -o -name "*.iso" \
-                 -o -name "*.tar*" -o -name "*.rar" \) \
-              -print0 2>/dev/null | sort -z)
+            while IFS= read -r -d '' FILE; do
+              ALL_FILES+=("$FILE")
+            done < <(find downloads -type f \
+                \( -name "*.zip" -o -name "*.z[0-9][0-9]" -o -name "*.z[0-9]" \
+                   -o -name "*.mp4" -o -name "*.mp3" -o -name "*.m4a" \
+                   -o -name "*.exe" -o -name "*.iso" \
+                   -o -name "*.tar*" -o -name "*.rar" \) \
+                -print0 2>/dev/null | sort -z || true)
+          fi
 
           TOTAL_FILES=${#ALL_FILES[@]}
           echo "Found $TOTAL_FILES files to push"
 
           if [ "$TOTAL_FILES" -eq 0 ]; then
-            git add README.md 2>/dev/null || true
-            if ! git diff --cached --quiet 2>/dev/null; then
-              git commit -m "[$AUTHOR] Update README [skip ci]"
-              timeout 120 git push origin "HEAD:$BRANCH" || true
+            # فقط README ریشه را آپدیت کن اگر تغییری داشته باشد
+            if [ -f "README.md" ]; then
+              git add README.md 2>/dev/null || true
+              if ! git diff --cached --quiet 2>/dev/null; then
+                git commit -m "[$AUTHOR] Update README [skip ci]" || true
+                timeout 120 git push origin "HEAD:$BRANCH" 2>/dev/null || true
+              fi
             fi
-            echo "No download files to push!"
+            echo "No download files to push - workflow completed successfully"
             exit 0
           fi
 
