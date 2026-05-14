@@ -1,5 +1,5 @@
 ---
-name: 01 - 🌐 Web Scraper
+name: 🌐 01-Web Scraper
 
 on:
   workflow_dispatch:
