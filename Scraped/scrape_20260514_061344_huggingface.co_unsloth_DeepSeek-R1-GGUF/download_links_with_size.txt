@@ -1,0 +1,228 @@
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00001-of-00030.gguf|1385
+42851492.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00001-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00002-of-00030.gguf|1387
+44957572.21 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00002-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00003-of-00030.gguf|1387
+44957572.21 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00003-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00004-of-00030.gguf|1391
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00004-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00005-of-00030.gguf|1387
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00005-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00006-of-00030.gguf|1389
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00006-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00007-of-00030.gguf|1393
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00007-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00008-of-00030.gguf|1385
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00008-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00009-of-00030.gguf|1385
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00009-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00010-of-00030.gguf|1387
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00010-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00011-of-00030.gguf|1389
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00011-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00012-of-00030.gguf|1389
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00012-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00013-of-00030.gguf|1387
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00013-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00014-of-00030.gguf|1391
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00014-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00015-of-00030.gguf|1391
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00015-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00016-of-00030.gguf|1387
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00016-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00017-of-00030.gguf|1381
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00017-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00018-of-00030.gguf|1391
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00018-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00019-of-00030.gguf|1385
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00019-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00020-of-00030.gguf|1389
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00020-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00021-of-00030.gguf|1391
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00021-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00022-of-00030.gguf|1383
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00022-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00023-of-00030.gguf|1389
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00023-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00024-of-00030.gguf|1383
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00024-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00025-of-00030.gguf|1393
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00025-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00026-of-00030.gguf|1391
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00026-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00027-of-00030.gguf|1395
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00027-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00028-of-00030.gguf|1389
+44957572.25 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00028-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00029-of-00030.gguf|1385
+46767492.31 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00029-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-BF16/DeepSeek-R1.BF16-00030-of-00030.gguf|1385
+7340088.28 KB|0|DeepSeek-R1-BF16/DeepSeek-R1.BF16-00030-of-00030.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00001-of-00005.gguf|1381
+48212475.68 KB|0|DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00001-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00002-of-00005.gguf|1389
+47374636.78 KB|0|DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00002-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00003-of-00005.gguf|1387
+47677188.25 KB|0|DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00003-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00004-of-00005.gguf|1381
+47741632.65 KB|0|DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00004-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00005-of-00005.gguf|1385
+47302996.25 KB|0|DeepSeek-R1-Q2_K/DeepSeek-R1-Q2_K-00005-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00001-of-00005.gguf|1387
+48424575.68 KB|0|DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00001-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00002-of-00005.gguf|1387
+47374636.78 KB|0|DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00002-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00003-of-00005.gguf|1393
+47677188.25 KB|0|DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00003-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00004-of-00005.gguf|1389
+47741632.65 KB|0|DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00004-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00005-of-00005.gguf|1393
+47302996.25 KB|0|DeepSeek-R1-Q2_K_L/DeepSeek-R1-Q2_K_L-00005-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00001-of-00005.gguf|1397
+48630337.00 KB|0|DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00001-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00002-of-00005.gguf|1391
+48021650.00 KB|0|DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00002-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00003-of-00005.gguf|1389
+48021650.00 KB|0|DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00003-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00004-of-00005.gguf|1403
+48021650.00 KB|0|DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00004-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00005-of-00005.gguf|1387
+23372766.65 KB|0|DeepSeek-R1-Q2_K_XS/DeepSeek-R1-Q2_K_XS-00005-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00001-of-00007.gguf|1391
+48490400.71 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00001-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00002-of-00007.gguf|1383
+48056999.21 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00002-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00003-of-00007.gguf|1385
+48056999.21 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00003-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00004-of-00007.gguf|1397
+48056999.21 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00004-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00005-of-00007.gguf|1401
+48056999.21 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00005-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00006-of-00007.gguf|1387
+48056999.21 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00006-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00007-of-00007.gguf|1387
+22941786.53 KB|0|DeepSeek-R1-Q3_K_M/DeepSeek-R1-Q3_K_M-00007-of-00007.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00001-of-00009.gguf|1395
+47206816.34 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00001-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00002-of-00009.gguf|1395
+48270894.84 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00002-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00003-of-00009.gguf|1397
+48366516.25 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00003-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00004-of-00009.gguf|1391
+47141122.59 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00004-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00005-of-00009.gguf|1395
+48263698.71 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00005-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00006-of-00009.gguf|1387
+47141122.59 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00006-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00007-of-00009.gguf|1399
+48270894.84 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00007-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00008-of-00009.gguf|1389
+45838646.18 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00008-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00009-of-00009.gguf|1391
+14451642.71 KB|0|DeepSeek-R1-Q4_K_M/DeepSeek-R1-Q4_K_M-00009-of-00009.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00001-of-00010.gguf|1397
+48411750.56 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00001-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00002-of-00010.gguf|1395
+47369636.50 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00002-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00003-of-00010.gguf|1393
+47369636.53 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00003-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00004-of-00010.gguf|1391
+47369636.53 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00004-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00005-of-00010.gguf|1387
+47369636.53 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00005-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00006-of-00010.gguf|1391
+47369636.53 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00006-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00007-of-00010.gguf|1385
+47369636.53 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00007-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00008-of-00010.gguf|1391
+47369636.53 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00008-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00009-of-00010.gguf|1397
+48827736.40 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00009-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00010-of-00010.gguf|1383
+35427508.65 KB|0|DeepSeek-R1-Q5_K_M/DeepSeek-R1-Q5_K_M-00010-of-00010.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00001-of-00012.gguf|1395
+45990346.50 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00001-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00002-of-00012.gguf|1395
+46120407.90 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00002-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00003-of-00012.gguf|1387
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00003-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00004-of-00012.gguf|1383
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00004-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00005-of-00012.gguf|1379
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00005-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00006-of-00012.gguf|1379
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00006-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00007-of-00012.gguf|1389
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00007-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00008-of-00012.gguf|1379
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00008-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00009-of-00012.gguf|1385
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00009-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00010-of-00012.gguf|1389
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00010-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00011-of-00012.gguf|1387
+46120407.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00011-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00012-of-00012.gguf|1383
+30694564.96 KB|0|DeepSeek-R1-Q6_K/DeepSeek-R1-Q6_K-00012-of-00012.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00001-of-00015.gguf|1395
+46664604.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00001-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00002-of-00015.gguf|1397
+47780984.34 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00002-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00003-of-00015.gguf|1383
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00003-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00004-of-00015.gguf|1387
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00004-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00005-of-00015.gguf|1389
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00005-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00006-of-00015.gguf|1379
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00006-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00007-of-00015.gguf|1385
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00007-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00008-of-00015.gguf|1387
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00008-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00009-of-00015.gguf|1379
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00009-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00010-of-00015.gguf|1383
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00010-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00011-of-00015.gguf|1387
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00011-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00012-of-00015.gguf|1393
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00012-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00013-of-00015.gguf|1387
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00013-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00014-of-00015.gguf|1389
+47780984.37 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00014-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00015-of-00015.gguf|1383
+28751460.46 KB|0|DeepSeek-R1-Q8_0/DeepSeek-R1.Q8_0-00015-of-00015.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00001-of-00004.gguf|1397
+48113299.09 KB|0|DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00001-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00002-of-00004.gguf|1397
+48553734.90 KB|0|DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00002-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00003-of-00004.gguf|1393
+48815036.90 KB|0|DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00003-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00004-of-00004.gguf|1387
+19475237.34 KB|0|DeepSeek-R1-UD-IQ1_M/DeepSeek-R1-UD-IQ1_M-00004-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_S/DeepSeek-R1-UD-IQ1_S-00001-of-00003.gguf|1397
+48192571.93 KB|0|DeepSeek-R1-UD-IQ1_S/DeepSeek-R1-UD-IQ1_S-00001-of-00003.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_S/DeepSeek-R1-UD-IQ1_S-00002-of-00003.gguf|1397
+48240141.03 KB|0|DeepSeek-R1-UD-IQ1_S/DeepSeek-R1-UD-IQ1_S-00002-of-00003.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ1_S/DeepSeek-R1-UD-IQ1_S-00003-of-00003.gguf|1391
+40512051.15 KB|0|DeepSeek-R1-UD-IQ1_S/DeepSeek-R1-UD-IQ1_S-00003-of-00003.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00001-of-00004.gguf|1405
+47902566.81 KB|0|DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00001-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00002-of-00004.gguf|1401
+48649883.62 KB|0|DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00002-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00003-of-00004.gguf|1413
+48649883.62 KB|0|DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00003-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00004-of-00004.gguf|1405
+46362590.18 KB|0|DeepSeek-R1-UD-IQ2_XXS/DeepSeek-R1-UD-IQ2_XXS-00004-of-00004.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00001-of-00005.gguf|1397
+48630172.59 KB|0|DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00001-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00002-of-00005.gguf|1397
+48825888.50 KB|0|DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00002-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00003-of-00005.gguf|1401
+48825888.50 KB|0|DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00003-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00004-of-00005.gguf|1405
+48825888.50 KB|0|DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00004-of-00005.gguf
+https://huggingface.co/unsloth/DeepSeek-R1-GGUF/resolve/main/DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00005-of-00005.gguf|1401
+26182782.06 KB|0|DeepSeek-R1-UD-Q2_K_XL/DeepSeek-R1-UD-Q2_K_XL-00005-of-00005.gguf

@@ -1,0 +1,20 @@
+# Download Link: 48825888.50 KB
+
+## Link Information
+
+| Property | Value |
+|----------|-------|
+| Source URL | https://huggingface.co/unsloth/DeepSeek-R1-GGUF |
+| Direct Link | [48825888.50 KB](48825888.50 KB) |
+| Filename | `48825888.50 KB` |
+| **File Size** | **0** |
+| Scraped at | 2026-05-14 06:14:37 UTC |
+
+## How to Download
+
+1. Copy this URL: `48825888.50 KB`
+2. Go to Actions -> GitHub Downloader
+3. Paste the URL and run
+
+---
+*Scraped by GitHub Actions*
