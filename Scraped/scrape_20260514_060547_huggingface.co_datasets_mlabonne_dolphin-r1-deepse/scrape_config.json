@@ -1,0 +1,10 @@
+{
+  "target_url": "https://huggingface.co/datasets/mlabonne/dolphin-r1-deepseek",
+  "file_extensions": ".gguf",
+  "min_file_size_mb": 0,
+  "max_file_size_mb": 0,
+  "max_pages": 0,
+  "show_all_links": false,
+  "recursive_depth": "0",
+  "scrape_time": "2026-05-14T06:05:47+00:00"
+}
