@@ -32,9 +32,6 @@ jobs:
       ZIP_PASSWORD: ${{ github.event.inputs.password }}
 
     steps:
-      # ─────────────────────────────────────────────
-      # ۱. بررسی ورودی
-      # ─────────────────────────────────────────────
       - name: Check URL provided
         run: |
           if [ -z "$URLS" ]; then
@@ -50,18 +47,12 @@ jobs:
           fi
           echo "✅ لینک دانلود دریافت شد"
 
-      # ─────────────────────────────────────────────
-      # ۲. چک‌اوت
-      # ─────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # ─────────────────────────────────────────────
-      # ۳. تنظیم Git برای فایل‌های بزرگ
-      # ─────────────────────────────────────────────
       - name: Configure Git for Large Files
         run: |
           git config --global http.postBuffer 524288000
@@ -74,26 +65,17 @@ jobs:
           git config user.email "github-actions@github.com"
           echo "Git configured for large file handling"
 
-      # ─────────────────────────────────────────────
-      # ۴. نصب ابزارها
-      # ─────────────────────────────────────────────
       - name: Install aria2 and zip
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y aria2 zip curl bc
 
-      # ─────────────────────────────────────────────
-      # ۵. برچسب نویسنده
-      # ─────────────────────────────────────────────
       - name: AminLotfiMehr Downloader
         run: |
           echo "🏷️  AminLotfiMehr - Your Download Solution"
           echo "🌐  https://github.com/AminLotfiMehr"
           echo ""
 
-      # ─────────────────────────────────────────────
-      # ۶. دانلود فایل‌ها
-      # ─────────────────────────────────────────────
       - name: Download files
         run: |
           set -euo pipefail
@@ -109,7 +91,6 @@ jobs:
           mkdir -p "$BACKUP_DIR"
           echo "$BACKUP_DIR" > /tmp/backup_dir_path.txt
 
-          # پاک‌سازی خودکار در پایان
           trap 'echo "Cleaning up tmp_downloads..."; rm -rf tmp_downloads' EXIT
 
           echo "AminLotfiMehr - Downloading with mode: $MODE"
@@ -122,8 +103,6 @@ jobs:
           fi
 
           mkdir -p downloads tmp_downloads
-
-          # ── توابع کمکی ──────────────────────────────
 
           RANDOM_WORDS=("alpha" "beta" "gamma" "delta" "epsilon" "zeta"
                         "theta" "kappa" "lambda" "sigma" "omega" "nova"
@@ -155,7 +134,6 @@ jobs:
               "$1"
           }
 
-          # ── ساخت فایل خطا ────────────────────────────
           create_error_file() {
             local FILENAME="$1"
             local ERROR_MSG="$2"
@@ -204,7 +182,6 @@ EOF
             echo "Error file created: $BACKUP_DIR/$FOLDER_NAME/README.md"
           }
 
-          # ── دانلود با تلاش مجدد ───────────────────────
           download_with_retry() {
             local URL="$1"
             local FILENAME="$2"
@@ -221,7 +198,6 @@ EOF
 
               rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2"
 
-              # تلاش اول: aria2c
               ERROR_LOG=$(aria2c \
                 --split=2 \
                 --max-connection-per-server=2 \
@@ -248,7 +224,6 @@ EOF
               rm -f "tmp_downloads/$FILENAME" "tmp_downloads/$FILENAME.aria2"
               echo "aria2c failed or file empty, trying curl fallback..."
 
-              # تلاش دوم: curl
               ERROR_LOG=$(curl -L -f -# \
                 --retry 3 \
                 --retry-delay 5 \
@@ -286,8 +261,6 @@ EOF
             return 1
           }
 
-          # ── حلقه دانلود ──────────────────────────────
-          # خواندن URL‌ها به صورت امن (بدون word splitting ناخواسته)
           read -ra URL_ARRAY <<< "$URLS"
           for URL in "${URL_ARRAY[@]}"; do
             FILENAME=$(basename "$URL" | sed 's/%20/ /g; s/%2F/-/g; s/[?#].*//')
@@ -297,10 +270,7 @@ EOF
             download_with_retry "$URL" "$FILENAME" || echo "⚠️ Failed to download: $FILENAME"
           done
 
-          # ── پردازش فایل‌ها بر اساس حالت ─────────────────
-
           if [ "$MODE" = "zip" ]; then
-            # ── حالت ZIP ──
             if [ -n "$(ls -A tmp_downloads 2>/dev/null)" ]; then
               ARCHIVE_NAME="archive_$(date +%Y%m%d_%H%M%S)"
               FOLDER_NAME=$(get_unique_folder "$BACKUP_DIR" "$ARCHIVE_NAME")
@@ -393,7 +363,6 @@ EOF
             fi
 
           else
-            # ── حالت Single ──
             for FILE in tmp_downloads/*; do
               [ -f "$FILE" ] || continue
 
@@ -488,7 +457,6 @@ EOF
                 fi
 
               else
-                # فایل کوچک — کپی مستقیم
                 cp "$FILE" "$BACKUP_DIR/$FOLDER_NAME/$BASENAME"
 
                 FILE_ENCODED=$(urlencode "${BASENAME}")
@@ -530,9 +498,6 @@ EOF
           echo "===== Backup folder contents ====="
           find "$BACKUP_DIR" -type f | head -50
 
-      # ─────────────────────────────────────────────
-      # ۷. بروزرسانی README
-      # ─────────────────────────────────────────────
       - name: Update README.md with download links
         run: |
           BACKUP_DIR=$(cat /tmp/backup_dir_path.txt)
@@ -560,7 +525,6 @@ EOF
             exit 0
           fi
 
-          # ساخت downloads/README.md
           {
             echo "# Downloaded list :"
             echo ""
@@ -576,7 +540,6 @@ EOF
           } > "downloads/README.md"
           echo "downloads/README.md updated"
 
-          # ساخت/بروزرسانی README.md ریشه
           SECTION_TITLE="فایل های دانلود شده در گیتهاب شما :"
 
           if [ ! -f "README.md" ]; then
@@ -588,7 +551,6 @@ Amin.lotfi1987@gmail.com
 EOF
           fi
 
-          # حذف بخش قبلی اگه وجود داشت
           if grep -q "$SECTION_TITLE" README.md; then
             sed -i "/$SECTION_TITLE/,/^---$/d" README.md
             sed -i '${/^$/d;}' README.md
@@ -613,9 +575,6 @@ EOF
 
           echo "README.md updated with download links"
 
-      # ─────────────────────────────────────────────
-      # ۸. Commit و Push تدریجی
-      # ─────────────────────────────────────────────
       - name: Incremental Commit & Push
         run: |
           set -uo pipefail
@@ -648,7 +607,6 @@ EOF
               "$1"
           }
 
-          # ── بازسازی downloads/README.md ──────────────
           regenerate_downloads_readme() {
             local DOWNLOADS_README="downloads/README.md"
             echo "Regenerating downloads README..."
@@ -672,8 +630,6 @@ EOF
             echo "Downloads README regenerated"
           }
 
-          # ── تابع push امن (مشترک برای همه جاها) ─────
-          # آرگومان‌ها: $1=پیام commit، $2...=فایل‌ها برای git add
           safe_push() {
             local COMMIT_MSG="$1"
             shift
@@ -722,9 +678,7 @@ EOF
             return 1
           }
 
-          # ── push دسته‌ای (batch) ─────────────────────
           push_batch() {
-            # batch size بر اساس حجم: حداکثر ~80MB در هر batch
             local MAX_BATCH_BYTES=$(( 80 * 1024 * 1024 ))
             local FILES=("$@")
             local BATCH_FILES=()
@@ -752,7 +706,6 @@ EOF
               fi
             done
 
-            # آخرین batch باقی‌مانده
             if [ ${#BATCH_FILES[@]} -gt 0 ]; then
               BATCH_NUM=$(( BATCH_NUM + 1 ))
               TOTAL_PUSHED=$(( TOTAL_PUSHED + ${#BATCH_FILES[@]} ))
@@ -763,7 +716,6 @@ EOF
             fi
           }
 
-          # ── آماده‌سازی لیست فایل‌ها ──────────────────
           echo ""
           echo "=========================================="
           echo "Starting incremental push process..."
@@ -778,12 +730,10 @@ EOF
           echo "Analyzing files to push..."
           ALL_FILES=()
 
-          # اول README‌ها
           while IFS= read -r -d '' FILE; do
             ALL_FILES+=("$FILE")
           done < <(find downloads -name "README.md" -print0 2>/dev/null)
 
-          # بعد فایل‌های اصلی
           while IFS= read -r -d '' FILE; do
             ALL_FILES+=("$FILE")
           done < <(find downloads -type f \
@@ -806,7 +756,6 @@ EOF
             exit 0
           fi
 
-          # حساب حجم کل
           TOTAL_SIZE=0
           for F in "${ALL_FILES[@]}"; do
             [ -f "$F" ] || continue
@@ -818,17 +767,14 @@ EOF
           echo ""
 
           if [ "$TOTAL_SIZE_MB" -lt 100 ]; then
-            # آپلود یک‌جا برای فایل‌های کوچک
             echo "Small upload - pushing all at once..."
             safe_push "[$AUTHOR] Downloaded files [skip ci]" \
               "downloads/" "README.md"
           else
-            # آپلود دسته‌ای برای فایل‌های بزرگ
             echo "Large upload (${TOTAL_SIZE_MB}MB) - using incremental batch push..."
             echo ""
             push_batch "${ALL_FILES[@]}"
 
-            # پوش نهایی README
             echo ""
             echo "Pushing README files..."
             regenerate_downloads_readme
