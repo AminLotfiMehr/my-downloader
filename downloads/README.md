@@ -1,7 +1,7 @@
-# Downloads
+# Downloaded list :
 
-This folder contains files downloaded by GitHub Downloader.
+- [dolphin-2.6-mistral-7b.Q8_0](./dolphin-2.6-mistral-7b.Q8_0)
 
-## Folders
+---
 
-- [DeepSeek-R1-Distill-Qwen-7B-Uncensored.i1-IQ1_M](./DeepSeek-R1-Distill-Qwen-7B-Uncensored.i1-IQ1_M/)
+*This tool created by [avasam.ir](https://avasam.ir)*
